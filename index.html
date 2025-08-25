@@ -332,43 +332,65 @@
       card.className = 'card';
       card.style.margin = '0';
       card.style.padding = '12px';
+      // Inline edit UI
       card.innerHTML = `
-        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
-          <div>
-            <div><strong>${d.name}</strong></div>
-            <div style="font-size:13px;color:#4a5568;">
-              base: ${fmt2(d.baseFeeRUB)} RUB; perKg: ${fmt2(d.pricePerKgRUB)} RUB/кг; minCharge: ${fmt2(d.minChargeRUB||0)}; minWeight: ${fmt2(d.minWeightKg||0)} кг
+        <div class="stack" style="gap:8px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <div>
+              <label>Название</label>
+              <input type="text" data-f="name" value="${d.name}" />
             </div>
-            ${d.description ? `<div style="color:#4a5568; font-size:13px;">${d.description}</div>` : ''}
+            <div>
+              <label>Описание</label>
+              <input type="text" data-f="desc" value="${d.description||''}" />
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+            <div>
+              <label>Базовая плата (RUB)</label>
+              <input type="number" step="0.01" min="0" data-f="base" value="${Number(d.baseFeeRUB||0).toFixed(2)}" />
+            </div>
+            <div>
+              <label>Цена за кг (RUB/кг)</label>
+              <input type="number" step="0.01" min="0" data-f="perKg" value="${Number(d.pricePerKgRUB||0).toFixed(2)}" />
+            </div>
+            <div>
+              <label>Мин. списание (RUB)</label>
+              <input type="number" step="0.01" min="0" data-f="minCh" value="${Number(d.minChargeRUB||0).toFixed(2)}" />
+            </div>
+            <div>
+              <label>Мин. вес (кг)</label>
+              <input type="number" step="0.01" min="0" data-f="minW" value="${Number(d.minWeightKg||0).toFixed(2)}" />
+            </div>
           </div>
           <div class="actions">
-            <button class="btn secondary" data-act="edit">Редактировать</button>
+            <button class="btn ok" data-act="save">Сохранить</button>
             <button class="btn danger" data-act="del">Удалить</button>
           </div>
         </div>
       `;
-      card.querySelector('[data-act="edit"]').onclick = () => {
-        const name = prompt('Название', d.name) ?? d.name;
-        const base = prompt('Базовая плата (руб.)', String(d.baseFeeRUB ?? 0)) ?? String(d.baseFeeRUB ?? 0);
-        const perKg = prompt('Цена за кг (руб./кг)', String(d.pricePerKgRUB ?? 0)) ?? String(d.pricePerKgRUB ?? 0);
-        const minCh = prompt('Мин. списание (руб., опц.)', String(d.minChargeRUB ?? 0)) ?? String(d.minChargeRUB ?? 0);
-        const minW = prompt('Мин. вес (кг, опц.)', String(d.minWeightKg ?? 0)) ?? String(d.minWeightKg ?? 0);
-        const desc = prompt('Описание (опционально)', d.description || '') ?? d.description;
+
+      card.querySelector('[data-act="save"]').onclick = () => {
+        const name = (card.querySelector('[data-f="name"]').value||'').trim();
+        const desc = (card.querySelector('[data-f="desc"]').value||'').trim();
+        const base = Number(card.querySelector('[data-f="base"]').value);
+        const perKg = Number(card.querySelector('[data-f="perKg"]').value);
+        const minCh = Number(card.querySelector('[data-f="minCh"]').value||0);
+        const minW  = Number(card.querySelector('[data-f="minW"]').value||0);
         if(!validateNonEmptyStr(name)) return alert('Название не может быть пустым');
-        if(Number(base) < 0 || Number(perKg) < 0 || Number(minCh) < 0 || Number(minW) < 0) return alert('Числа не могут быть отрицательными');
-        d.name = name.trim();
-        d.baseFeeRUB = Number(Number(base).toFixed(2));
-        d.pricePerKgRUB = Number(Number(perKg).toFixed(2));
-        d.minChargeRUB = Number(Number(minCh).toFixed(2));
-        d.minWeightKg = Number(Number(minW).toFixed(2));
-        d.description = (desc||'').trim();
-        // если имя изменилось, обновим у товаров выбранный вариант,
-        // оставим как текст (товар хранит имя варианта)
+        if(base < 0 || perKg < 0 || minCh < 0 || minW < 0) return alert('Числа не могут быть отрицательными');
+        d.name = name;
+        d.baseFeeRUB = Number(base.toFixed(2));
+        d.pricePerKgRUB = Number(perKg.toFixed(2));
+        d.minChargeRUB = Number(minCh.toFixed(2));
+        d.minWeightKg = Number(minW.toFixed(2));
+        d.description = desc;
         renderDeliveryList();
         renderProducts();
         recalcAll();
         scheduleSave();
       };
+
       card.querySelector('[data-act="del"]').onclick = () => {
         if(!confirm('Удалить вариант доставки?')) return;
         state.deliveryOptions = state.deliveryOptions.filter(x => x !== d);
@@ -492,33 +514,56 @@
   };
 
   el.btnExportXlsx.onclick = () => {
-    // Build data according to required JSON structure
-    const jsonData = {
-      currencyRate: Number(state.currencyRate),
-      deliveryOptions: state.deliveryOptions.map(d => ({ name: d.name, cost: Number((d.baseFeeRUB||0) + (d.pricePerKgRUB||0)), description: d.description || '' })),
-      products: state.products.map(p => ({
-        name: p.name,
-        url: p.url || '',
-        weightKg: Number(p.weightKg||0),
-        quantity: Number(p.quantity),
-        unitPriceYuan: Number(Number(p.unitPriceYuan).toFixed(2)),
-        deliveryOption: p.deliveryOptionName || '',
-        finalPriceRUB: Number(Number(recalcProduct(p)).toFixed(2))
-      }))
-    };
+    // Build data and ensure recalculated helpers present
+    const rate = Number(state.currencyRate);
+    let totalGoods = 0, totalDelivery = 0, totalFinal = 0, totalWeightAll = 0;
 
-    // Worksheet: one row per product + delivery info
-    const rows = jsonData.products.map((prod, i) => ({
-      Название: prod.name,
-      Ссылка: prod.url,
-      'Вес (кг) за 1 шт': prod.weightKg,
-      Количество: prod.quantity,
-      'Цена (CNY)': prod.unitPriceYuan,
-      'Вариант доставки': prod.deliveryOption,
-      'Стоимость доставки (RUB)': Number((state.products[i]?._deliveryCostRUB)||0),
-      'Курс (RUB/CNY)': jsonData.currencyRate,
-      'Итог (RUB)': prod.finalPriceRUB
-    }));
+    const rows = state.products.map(p => {
+      // Recalc to ensure caches
+      recalcProduct(p);
+      const qty = Number(p.quantity) || 0;
+      const unitW = Number(p.weightKg||0);
+      const del = state.deliveryOptions.find(d => d.name === p.deliveryOptionName);
+      const minW = Number(del?.minWeightKg||0);
+      const totalW = Math.max(unitW * qty, minW);
+      const goodsRub = Number(p._goodsRUB||0);
+      const delRub = Number(p._deliveryCostRUB||0);
+      const finalRub = Number((goodsRub + delRub).toFixed(2));
+
+      totalGoods += goodsRub;
+      totalDelivery += delRub;
+      totalFinal += finalRub;
+      totalWeightAll += totalW;
+
+      return {
+        'Название': p.name,
+        'Ссылка': p.url || '',
+        'Вес (кг) за 1 шт': unitW,
+        'Количество': qty,
+        'Суммарный вес (кг)': Number(totalW.toFixed(3)),
+        'Цена (CNY)': Number((Number(p.unitPriceYuan)||0).toFixed(2)),
+        'Цена товара (RUB)': Number(goodsRub.toFixed(2)),
+        'Вариант доставки': p.deliveryOptionName || '',
+        'Стоимость доставки (RUB)': Number(delRub.toFixed(2)),
+        'Курс (RUB/CNY)': rate,
+        'Итог (RUB)': Number(finalRub.toFixed(2))
+      };
+    });
+
+    // Totals row
+    rows.push({
+      'Название': 'ИТОГО:',
+      'Ссылка': '',
+      'Вес (кг) за 1 шт': '',
+      'Количество': '',
+      'Суммарный вес (кг)': Number(totalWeightAll.toFixed(3)),
+      'Цена (CNY)': '',
+      'Цена товара (RUB)': Number(totalGoods.toFixed(2)),
+      'Вариант доставки': '',
+      'Стоимость доставки (RUB)': Number(totalDelivery.toFixed(2)),
+      'Курс (RUB/CNY)': rate,
+      'Итог (RUB)': Number(totalFinal.toFixed(2))
+    });
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
