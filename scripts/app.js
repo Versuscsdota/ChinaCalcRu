@@ -85,6 +85,14 @@
     chatMessages: document.getElementById('chatMessages'),
     chatInput: document.getElementById('chatInput'),
     chatSend: document.getElementById('chatSend'),
+
+    // Tabs
+    tabBtnDashboard: document.getElementById('tabBtnDashboard'),
+    tabBtnDeliveries: document.getElementById('tabBtnDeliveries'),
+    tabBtnProducts: document.getElementById('tabBtnProducts'),
+    panelDashboard: document.getElementById('panelDashboard'),
+    panelDeliveries: document.getElementById('panelDeliveries'),
+    panelProducts: document.getElementById('panelProducts'),
   };
 
   // Save status helper (moved here so it can access `el.saveStatus`)
@@ -357,6 +365,26 @@
   }
 
   // Event wiring (auth removed)
+
+  // Tabs switching
+  function setTab(name){
+    const btns = [el.tabBtnDashboard, el.tabBtnDeliveries, el.tabBtnProducts];
+    const panels = [el.panelDashboard, el.panelDeliveries, el.panelProducts];
+    const names = ['dashboard','deliveries','products'];
+    names.forEach((n, i) => {
+      if(!btns[i] || !panels[i]) return;
+      if(n === name){
+        btns[i].classList.add('active');
+        panels[i].classList.remove('hidden');
+      } else {
+        btns[i].classList.remove('active');
+        panels[i].classList.add('hidden');
+      }
+    });
+  }
+  if(el.tabBtnDashboard) el.tabBtnDashboard.onclick = () => setTab('dashboard');
+  if(el.tabBtnDeliveries) el.tabBtnDeliveries.onclick = () => setTab('deliveries');
+  if(el.tabBtnProducts) el.tabBtnProducts.onclick = () => setTab('products');
 
   el.btnAddProduct.onclick = () => { addProduct(); scheduleSave(); };
   el.btnClearAll.onclick = async () => {
@@ -676,5 +704,7 @@ async function sendChat(){
   el.app.classList.remove('hidden');
   el.currencyRate.value = state.currencyRate.toFixed(2);
   setSaving('saved');
+  // default tab
+  if (typeof setTab === 'function') { setTab('dashboard'); }
   loadFromCloud();
 })();

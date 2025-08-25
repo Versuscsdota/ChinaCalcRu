@@ -50,42 +50,55 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>🚚 Варианты доставки</h2>
-        <div class="actions" style="margin:8px 0 12px; justify-content: flex-start;">
-          <button class="btn ok" id="btnOpenDeliveryModal">Добавить вариант доставки</button>
-          <span class="badge" style="margin-left:8px;">Формула: base + max(perKg * max(totalWeight, minWeight), minCharge)</span>
-        </div>
-        <div id="deliveryList" class="stack"></div>
+      <div class="tabs">
+        <button class="tab-btn active" id="tabBtnDashboard">Дашборд</button>
+        <button class="tab-btn" id="tabBtnDeliveries">Доставка</button>
+        <button class="tab-btn" id="tabBtnProducts">Товары</button>
       </div>
 
-      <div class="card">
-        <h2>🧾 Товары</h2>
-        <div class="actions" style="margin-bottom:10px;">
-          <button class="btn ok" id="btnAddProduct">Добавить товар</button>
-        </div>
-        <div class="table-wrap">
-          <table id="productsTable">
-            <thead>
-              <tr>
-                <th>№</th>
-                <th>Название</th>
-                <th>Ссылка</th>
-                <th>Вес, кг (за 1 шт)</th>
-                <th>Кол-во</th>
-                <th>Цена, CNY</th>
-                <th>Доставка</th>
-                <th>Итог, RUB</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody id="productsBody"></tbody>
-          </table>
+      <div id="panelDashboard" class="tab-panel">
+        <div class="card">
+          <h2>📊 Дашборд</h2>
+          <div><strong>Итого к оплате (RUB):</strong> <span id="grandTotal">0.00</span></div>
         </div>
       </div>
 
-      <div class="card">
-        <div><strong>Итого к оплате (RUB):</strong> <span id="grandTotal">0.00</span></div>
+      <div id="panelDeliveries" class="tab-panel hidden">
+        <div class="card">
+          <h2>🚚 Варианты доставки</h2>
+          <div class="actions" style="margin:8px 0 12px; justify-content: flex-start;">
+            <button class="btn ok" id="btnOpenDeliveryModal">Добавить вариант доставки</button>
+            <span class="badge" style="margin-left:8px;">Формула: base + max(perKg * max(totalWeight, minWeight), minCharge)</span>
+          </div>
+          <div id="deliveryList" class="stack"></div>
+        </div>
+      </div>
+
+      <div id="panelProducts" class="tab-panel hidden">
+        <div class="card">
+          <h2>🧾 Товары</h2>
+          <div class="actions" style="margin-bottom:10px;">
+            <button class="btn ok" id="btnAddProduct">Добавить товар</button>
+          </div>
+          <div class="table-wrap">
+            <table id="productsTable">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>Название</th>
+                  <th>Ссылка</th>
+                  <th>Вес, кг (за 1 шт)</th>
+                  <th>Кол-во</th>
+                  <th>Цена, CNY</th>
+                  <th>Доставка</th>
+                  <th>Итог, RUB</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody id="productsBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
