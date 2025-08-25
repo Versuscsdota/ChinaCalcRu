@@ -379,7 +379,72 @@
     });
 
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Define header order explicitly for stable columns in export
+    const headers = [
+      'Название',
+      'Ссылка',
+      'Вес (кг) за 1 шт',
+      'Количество',
+      'Суммарный вес (кг)',
+      'Цена (CNY)',
+      'Цена товара (RUB)',
+      'Вариант доставки',
+      'Стоимость доставки (RUB)',
+      'Курс (RUB/CNY)',
+      'Итог (RUB)'
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+
+    // Column widths (characters)
+    ws['!cols'] = [
+      { wch: 30 }, // Название
+      { wch: 40 }, // Ссылка
+      { wch: 14 }, // Вес (кг) за 1 шт
+      { wch: 12 }, // Количество
+      { wch: 16 }, // Суммарный вес (кг)
+      { wch: 12 }, // Цена (CNY)
+      { wch: 18 }, // Цена товара (RUB)
+      { wch: 18 }, // Вариант доставки
+      { wch: 22 }, // Стоимость доставки (RUB)
+      { wch: 14 }, // Курс (RUB/CNY)
+      { wch: 14 }  // Итог (RUB)
+    ];
+
+    // AutoFilter over the full data range
+    if (ws['!ref']) {
+      ws['!autofilter'] = { ref: ws['!ref'] };
+    }
+
+    // Freeze the top header row (supported in recent SheetJS builds)
+    ws['!freeze'] = { rows: 1 };
+
+    // Make header bold where supported
+    for (let c = 0; c < headers.length; c++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[cellRef]) {
+        ws[cellRef].s = Object.assign({}, ws[cellRef].s || {}, { font: { bold: true } });
+      }
+    }
+
+    // Convert 'Ссылка' column values to hyperlinks
+    const linkColIndex = headers.indexOf('Ссылка'); // expected 1 (column B)
+    if (ws['!ref'] && linkColIndex >= 0) {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let r = range.s.r + 1; r <= range.e.r; r++) { // start from row 2 (skip header)
+        const ref = XLSX.utils.encode_cell({ r, c: linkColIndex });
+        const cell = ws[ref];
+        if (cell && typeof cell.v === 'string' && cell.v.trim()) {
+          let url = cell.v.trim();
+          if (!/^https?:\/\//i.test(url)) {
+            url = 'https://' + url;
+          }
+          cell.l = { Target: url, Tooltip: 'Открыть ссылку' };
+        }
+      }
+    }
+
     XLSX.utils.book_append_sheet(wb, ws, 'Товары');
     const date = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, `china-goods-${date}.xlsx`);
