@@ -1,0 +1,33 @@
+# Node / tooling
+node_modules/
+.npmrc
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Build / dist
+.dist/
+dist/
+build/
+.tmp/
+.temp/
+
+# Logs
+*.log
+logs/
+
+# Cloudflare local state
+.wrangler/
+.dev.vars
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Misc
+*.local
+.env
+.env.*
