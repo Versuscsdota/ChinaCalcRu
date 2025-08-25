@@ -50,8 +50,68 @@
         </div>
       </div>
 
+      <div id="panelOrders" class="tab-panel hidden">
+        <div class="card">
+          <h2>🧾 Заказы</h2>
+          <div class="actions" style="margin:8px 0 12px; justify-content:flex-start; gap:8px;">
+            <button class="btn ok" id="btnOrderNew">Новый заказ</button>
+            <button class="btn" id="btnOrdersRefresh">Обновить</button>
+            <span class="muted">Редактируйте заказ через форму ниже</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Статус</th>
+                  <th>Отгрузка</th>
+                  <th>Позиций</th>
+                  <th>Создан</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3 id="orderFormTitle">Создать / Редактировать заказ</h3>
+          <div class="grid" style="grid-template-columns: repeat(2, minmax(200px, 1fr)); gap:10px;">
+            <label class="stack">
+              <span class="muted">ID (если пусто — сгенерируется)</span>
+              <input type="text" id="orderId" placeholder="o123" />
+            </label>
+            <label class="stack">
+              <span class="muted">Статус</span>
+              <select id="orderStatus">
+                <option value="draft">draft</option>
+                <option value="confirmed">confirmed</option>
+                <option value="paid">paid</option>
+                <option value="packed">packed</option>
+                <option value="shipped">shipped</option>
+                <option value="delivered">delivered</option>
+                <option value="cancelled">cancelled</option>
+              </select>
+            </label>
+            <label class="stack">
+              <span class="muted">ID отгрузки (опц.)</span>
+              <input type="text" id="orderShipmentId" placeholder="s123" />
+            </label>
+            <label class="stack" style="grid-column: 1 / -1;">
+              <span class="muted">Items (JSON массив: [{"productId":"p1","qty":2}])</span>
+              <textarea id="orderItems" rows="5" placeholder='[{"productId":"p1","qty":2}]'></textarea>
+            </label>
+          </div>
+          <div class="actions" style="margin-top:10px; justify-content:flex-start; gap:8px;">
+            <button class="btn ok" id="btnOrderSave">Сохранить</button>
+            <button class="btn secondary" id="btnOrderCancel">Отмена</button>
+          </div>
+        </div>
+      </div>
+
       <div class="tabs">
         <button class="tab-btn active" id="tabBtnDashboard">Дашборд</button>
+        <button class="tab-btn" id="tabBtnOrders">Заказы</button>
         <button class="tab-btn" id="tabBtnDeliveries">Доставка</button>
         <button class="tab-btn" id="tabBtnProducts">Товары</button>
         <button class="tab-btn" id="tabBtnAI">ИИ</button>
@@ -99,6 +159,24 @@
               <tbody id="shipmentsBody"></tbody>
             </table>
           </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>🧾 Статусы заказов</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Статус</th>
+                  <th>Кол-во</th>
+                </tr>
+              </thead>
+              <tbody id="ordersStatusBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>⚠️ Алерты</h3>
+          <ul id="alertsList" class="stack" style="gap:6px; margin:0; padding-left:18px;"></ul>
         </div>
       </div>
 

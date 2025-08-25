@@ -3,7 +3,10 @@
   const state = {
     currencyRate: 13.00,
     deliveryOptions: [], // { id, name, baseFeeRUB, pricePerKgRUB, minChargeRUB, minWeightKg, description }
-    products: [] // { id, name, url, weightKg, quantity, unitPriceYuan, deliveryOptionName, finalPriceRUB }
+    products: [], // { id, name, url, weightKg, quantity, unitPriceYuan, deliveryOptionName, finalPriceRUB }
+    // Orders state
+    orders: [], // { id, status, shipmentId?, items:[{productId, qty}], createdAt }
+    selectedOrderId: null
   };
 
   // Cloud persistence (Pages Functions + KV)
@@ -90,6 +93,8 @@
     kpiExpenses: document.getElementById('kpiExpenses'),
     kpiMargin: document.getElementById('kpiMargin'),
     shipmentsBody: document.getElementById('shipmentsBody'),
+    ordersStatusBody: document.getElementById('ordersStatusBody'),
+    alertsList: document.getElementById('alertsList'),
 
     // AI Chat
     chatMessages: document.getElementById('chatMessages'),
@@ -100,13 +105,29 @@
 
     // Tabs
     tabBtnDashboard: document.getElementById('tabBtnDashboard'),
+    tabBtnOrders: document.getElementById('tabBtnOrders'),
     tabBtnDeliveries: document.getElementById('tabBtnDeliveries'),
     tabBtnProducts: document.getElementById('tabBtnProducts'),
     tabBtnAI: document.getElementById('tabBtnAI'),
     panelDashboard: document.getElementById('panelDashboard'),
+    panelOrders: document.getElementById('panelOrders'),
     panelDeliveries: document.getElementById('panelDeliveries'),
     panelProducts: document.getElementById('panelProducts'),
     panelAI: document.getElementById('panelAI'),
+  };
+
+  // Orders DOM refs
+  const orderEl = {
+    btnNew: document.getElementById('btnOrderNew'),
+    btnRefresh: document.getElementById('btnOrdersRefresh'),
+    tableBody: document.getElementById('ordersTableBody'),
+    formTitle: document.getElementById('orderFormTitle'),
+    id: document.getElementById('orderId'),
+    status: document.getElementById('orderStatus'),
+    shipmentId: document.getElementById('orderShipmentId'),
+    items: document.getElementById('orderItems'),
+    btnSave: document.getElementById('btnOrderSave'),
+    btnCancel: document.getElementById('btnOrderCancel'),
   };
 
   // Save status helper (moved here so it can access `el.saveStatus`)
@@ -125,6 +146,156 @@
       el.saveStatus.style.background = '#fee2e2';
       el.saveStatus.style.color = '#991b1b';
     }
+  }
+
+  // ==========================
+  // Orders UI (CRUD + Validation)
+  // ==========================
+  async function fetchOrders(){
+    try{
+      const res = await fetch('/api/orders', { credentials: 'include' });
+      if(!res.ok) return { items: [] };
+      return await res.json();
+    }catch{ return { items: [] }; }
+  }
+  async function saveOrders(list){
+    try{
+      const res = await fetch('/api/orders', { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ items: list }) });
+      return res.ok;
+    }catch{ return false; }
+  }
+
+  function renderOrdersTable(){
+    if(!orderEl.tableBody) return;
+    orderEl.tableBody.innerHTML = '';
+    const rows = state.orders.slice().sort((a,b)=>String(b.createdAt||'')-String(a.createdAt||''));
+    rows.forEach(o => {
+      const tr = document.createElement('tr');
+      const itemsCount = Array.isArray(o.items) ? o.items.length : 0;
+      const created = o.createdAt ? new Date(o.createdAt) : null;
+      tr.innerHTML = `
+        <td>${o.id}</td>
+        <td>${o.status}</td>
+        <td>${o.shipmentId||''}</td>
+        <td>${itemsCount}</td>
+        <td>${created ? created.toLocaleString() : ''}</td>
+        <td class="actions">
+          <button class="btn" data-act="edit">Ред.</button>
+          <button class="btn danger" data-act="del">Удалить</button>
+        </td>
+      `;
+      const btnE = tr.querySelector('[data-act="edit"]');
+      const btnD = tr.querySelector('[data-act="del"]');
+      btnE.onclick = () => loadOrderToForm(o.id);
+      btnD.onclick = async () => {
+        if(!confirm('Удалить заказ?')) return;
+        state.orders = state.orders.filter(x => String(x.id) !== String(o.id));
+        await saveOrders(state.orders);
+        renderOrdersTable();
+      };
+      orderEl.tableBody.appendChild(tr);
+    });
+  }
+
+  function clearOrderForm(){
+    state.selectedOrderId = null;
+    if(orderEl.formTitle) orderEl.formTitle.textContent = 'Создать / Редактировать заказ';
+    if(orderEl.id) orderEl.id.value = '';
+    if(orderEl.status) orderEl.status.value = 'draft';
+    if(orderEl.shipmentId) orderEl.shipmentId.value = '';
+    if(orderEl.items) orderEl.items.value = '';
+    [orderEl.id, orderEl.status, orderEl.shipmentId, orderEl.items].forEach(clearInvalid);
+  }
+
+  function loadOrderToForm(id){
+    const o = state.orders.find(x => String(x.id) === String(id));
+    if(!o) return;
+    state.selectedOrderId = o.id;
+    if(orderEl.formTitle) orderEl.formTitle.textContent = `Редактировать заказ ${o.id}`;
+    if(orderEl.id) orderEl.id.value = String(o.id||'');
+    if(orderEl.status) orderEl.status.value = String(o.status||'draft');
+    if(orderEl.shipmentId) orderEl.shipmentId.value = String(o.shipmentId||'');
+    if(orderEl.items) orderEl.items.value = JSON.stringify(Array.isArray(o.items)?o.items:[], null, 2);
+  }
+
+  function parseItems(jsonText){
+    try{
+      const arr = JSON.parse(jsonText || '[]');
+      if(!Array.isArray(arr)) return null;
+      const out = [];
+      for(const it of arr){
+        if(!it || typeof it !== 'object') return null;
+        const productId = String(it.productId||'').trim();
+        const qty = Number(it.qty);
+        if(!productId || !Number.isInteger(qty) || qty <= 0) return null;
+        out.push({ productId, qty });
+        if(out.length > 200) break; // ограничение размера
+      }
+      return out;
+    }catch{ return null; }
+  }
+
+  function isValidStatusTransition(prev, next){
+    if(!prev) return true; // новое -> любое допустимо
+    if(prev === next) return true;
+    const order = ['draft','confirmed','paid','packed','shipped','delivered'];
+    const idxPrev = order.indexOf(prev);
+    const idxNext = order.indexOf(next);
+    if(next === 'cancelled') return true; // можно отменить из любого
+    if(idxPrev === -1 || idxNext === -1) return false;
+    // Разрешаем только движение вперед на одну или несколько ступеней (без возврата)
+    return idxNext >= idxPrev;
+  }
+
+  async function collectOrderFromForm(){
+    const idRaw = (orderEl.id?.value||'').trim();
+    const status = (orderEl.status?.value||'draft').trim();
+    const shipmentId = (orderEl.shipmentId?.value||'').trim();
+    const itemsText = (orderEl.items?.value||'').trim();
+
+    // ID: допускаем пустой (будет сгенерирован)
+    if(orderEl.id) clearInvalid(orderEl.id);
+    if(orderEl.status) clearInvalid(orderEl.status);
+
+    // items
+    const items = parseItems(itemsText);
+    if(!items){ setInvalid(orderEl.items, 'Нужно указать массив {productId, qty>0}'); return null; }
+    clearInvalid(orderEl.items);
+
+    // контролируем переход статуса
+    const existing = state.orders.find(x => String(x.id) === String(state.selectedOrderId||idRaw));
+    const prevStatus = existing?.status;
+    if(!isValidStatusTransition(prevStatus, status)){
+      setInvalid(orderEl.status, `Недопустимый переход: ${prevStatus||'new'} -> ${status}`);
+      return null;
+    }
+
+    // необязательная проверка shipmentId (если указан — должен существовать)
+    if(shipmentId){
+      const sh = await fetchShipments();
+      const exists = Array.isArray(sh.items) && sh.items.some(s => String(s.id||s.trackingNumber) === shipmentId || String(s.id) === shipmentId);
+      if(!exists){
+        const proceed = confirm('Указанный ID отгрузки не найден. Продолжить сохранение?');
+        if(!proceed) { setInvalid(orderEl.shipmentId, 'Не найдена отгрузка'); return null; }
+      }
+      clearInvalid(orderEl.shipmentId);
+    }
+
+    const id = idRaw || ('o' + Date.now());
+    return {
+      id,
+      status,
+      shipmentId: shipmentId || undefined,
+      items,
+      createdAt: existing?.createdAt || new Date().toISOString()
+    };
+  }
+
+  async function refreshOrders(){
+    const data = await fetchOrders();
+    state.orders = Array.isArray(data.items) ? data.items : [];
+    renderOrdersTable();
+    clearOrderForm();
   }
 
   // Helpers
@@ -201,6 +372,17 @@
     if(el.kpiSales) el.kpiSales.textContent = fmt2(stats.finance?.salesRUB ?? 0);
     if(el.kpiExpenses) el.kpiExpenses.textContent = fmt2(stats.finance?.expensesRUB ?? 0);
     if(el.kpiMargin) el.kpiMargin.textContent = fmt2(stats.finance?.marginRUB ?? 0);
+    // Orders status breakdown
+    if(el.ordersStatusBody){
+      el.ordersStatusBody.innerHTML = '';
+      const orderStatuses = ['draft','confirmed','paid','packed','shipped','delivered','cancelled'];
+      const map = stats.orders?.byStatus || {};
+      orderStatuses.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${s}</td><td>${Number(map[s]||0)}</td>`;
+        el.ordersStatusBody.appendChild(tr);
+      });
+    }
   }
   function renderShipmentsTable(list){
     if(!el.shipmentsBody) return;
@@ -227,6 +409,26 @@
     const [stats, shipments] = await Promise.all([fetchStats(), fetchShipments()]);
     if(stats) renderKPIs(stats);
     renderShipmentsTable(Array.isArray(shipments?.items) ? shipments.items : []);
+    // Alerts list
+    if(el.alertsList){
+      el.alertsList.innerHTML = '';
+      const alerts = [];
+      const now = Date.now();
+      const list = Array.isArray(shipments?.items) ? shipments.items : [];
+      list.forEach(s => {
+        const etaMs = s.eta ? Date.parse(s.eta) : NaN;
+        if(s.status === 'lost' || s.status === 'returned'){
+          alerts.push(`Отгрузка ${s.trackingNumber||s.id}: статус ${s.status}`);
+        } else if(Number.isFinite(etaMs) && etaMs < now && s.status !== 'delivered'){
+          alerts.push(`Отгрузка ${s.trackingNumber||s.id}: просрочен ETA`);
+        }
+      });
+      if(alerts.length === 0){
+        const li = document.createElement('li'); li.className='muted'; li.textContent='Нет алертов'; el.alertsList.appendChild(li);
+      } else {
+        alerts.forEach(t => { const li = document.createElement('li'); li.textContent = t; el.alertsList.appendChild(li); });
+      }
+    }
   }
 
   function renderDeliveryList(){
@@ -435,9 +637,9 @@
 
   // Tabs switching
   function setTab(name){
-    const btns = [el.tabBtnDashboard, el.tabBtnDeliveries, el.tabBtnProducts, el.tabBtnAI];
-    const panels = [el.panelDashboard, el.panelDeliveries, el.panelProducts, el.panelAI];
-    const names = ['dashboard','deliveries','products','ai'];
+    const btns = [el.tabBtnDashboard, el.tabBtnOrders, el.tabBtnDeliveries, el.tabBtnProducts, el.tabBtnAI];
+    const panels = [el.panelDashboard, el.panelOrders, el.panelDeliveries, el.panelProducts, el.panelAI];
+    const names = ['dashboard','orders','deliveries','products','ai'];
     names.forEach((n, i) => {
       if(!btns[i] || !panels[i]) return;
       if(n === name){
@@ -450,6 +652,9 @@
         if(n === 'dashboard'){
           updateDashboard();
         }
+        if(n === 'orders'){
+          refreshOrders();
+        }
       } else {
         btns[i].classList.remove('active');
         panels[i].classList.add('hidden');
@@ -457,9 +662,39 @@
     });
   }
   if(el.tabBtnDashboard) el.tabBtnDashboard.onclick = () => setTab('dashboard');
+  if(el.tabBtnOrders) el.tabBtnOrders.onclick = () => setTab('orders');
   if(el.tabBtnDeliveries) el.tabBtnDeliveries.onclick = () => setTab('deliveries');
   if(el.tabBtnProducts) el.tabBtnProducts.onclick = () => setTab('products');
   if(el.tabBtnAI) el.tabBtnAI.onclick = () => setTab('ai');
+
+  // Orders: events
+  if(orderEl.btnRefresh){ orderEl.btnRefresh.onclick = () => refreshOrders(); }
+  if(orderEl.btnNew){ orderEl.btnNew.onclick = () => clearOrderForm(); }
+  if(orderEl.btnCancel){ orderEl.btnCancel.onclick = () => clearOrderForm(); }
+  if(orderEl.btnSave){
+    orderEl.btnSave.onclick = async () => {
+      const obj = await collectOrderFromForm();
+      if(!obj) return;
+      // prevent duplicate IDs
+      const existingIdx = state.orders.findIndex(x => String(x.id) === String(state.selectedOrderId ?? obj.id));
+      const duplicateIdIdx = state.orders.findIndex(x => String(x.id) === String(obj.id));
+      if(existingIdx !== -1 && duplicateIdIdx !== -1 && duplicateIdIdx !== existingIdx){
+        alert('ID заказа уже существует');
+        setInvalid(orderEl.id, 'Дубликат ID');
+        return;
+      }
+      clearInvalid(orderEl.id);
+      if(existingIdx === -1){
+        state.orders.push(obj);
+      } else {
+        state.orders[existingIdx] = obj;
+      }
+      const ok = await saveOrders(state.orders);
+      if(!ok){ alert('Не удалось сохранить заказы'); return; }
+      renderOrdersTable();
+      clearOrderForm();
+    };
+  }
 
   el.btnAddProduct.onclick = () => { addProduct(); scheduleSave(); };
   el.btnClearAll.onclick = async () => {
