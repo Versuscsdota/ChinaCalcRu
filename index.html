@@ -1,0 +1,539 @@
+  <!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Калькулятор товаров из Китая (v2)</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <style>
+    :root {
+      --primary: #007aff;
+      --danger: #ff3b30;
+      --ok: #34c759;
+      --bg: #f7fafc;
+      --card: #ffffff;
+      --text: #1a202c;
+      --muted: #4a5568;
+      --border: #e2e8f0;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    h2 { margin: 0 0 10px; font-size: 18px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    input, select, button, textarea {
+      font: inherit;
+    }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    .btn {
+      padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; color: #fff; background: var(--primary);
+    }
+    .btn.secondary { background: #a0aec0; color: #fff; }
+    .btn.danger { background: var(--danger); }
+    .btn.ok { background: var(--ok); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: center; font-size: 14px; }
+    th { background: #f1f5f9; text-transform: uppercase; font-size: 12px; color: var(--muted); }
+    .right { text-align: right; }
+    .actions { display: flex; gap: 8px; justify-content: center; }
+    .error { color: var(--danger); font-weight: 600; }
+    .hidden { display: none !important; }
+    .badge { padding: 2px 8px; background: #edf2f7; border-radius: 999px; font-size: 12px; color: #2d3748; }
+    .stack { display: grid; gap: 10px; }
+  </style>
+  <!-- SheetJS for XLSX export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="card" id="authCard">
+      <h1>🔐 Доступ к калькулятору</h1>
+      <div class="row">
+        <div class="stack">
+          <label for="accessKeyInput">Ключ доступа</label>
+          <input type="text" id="accessKeyInput" placeholder="Введите ключ доступа" />
+          <div id="authError" class="error hidden"></div>
+        </div>
+        <div class="stack" style="align-content:end;align-items:start;">
+          <button class="btn ok" id="btnLogin">Войти</button>
+          <span class="badge">Подсказка: ключ можно настроить в коде</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="app" class="hidden">
+      <div class="card">
+        <h1>📦 Калькулятор товаров из Китая</h1>
+        <div class="row">
+          <div>
+            <label for="currencyRate">Курс юаня к рублю</label>
+            <div style="display:flex; gap:8px;">
+              <input type="number" id="currencyRate" step="0.01" min="0" value="13.00" />
+              <button class="btn secondary" id="btnUpdateRate">Обновить</button>
+            </div>
+          </div>
+          <div class="stack">
+            <label>Экспорт</label>
+            <div class="actions">
+              <button class="btn" id="btnExportXlsx">Экспорт в Excel (xlsx)</button>
+              <button class="btn secondary" id="btnClearAll">Очистить</button>
+            </div>
+            <div>
+              <span id="saveStatus" class="badge">Сохранено</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🚚 Варианты доставки</h2>
+        <div class="row">
+          <div class="stack">
+            <label for="deliveryName">Название</label>
+            <input type="text" id="deliveryName" placeholder="Напр. Авиа" />
+          </div>
+          <div class="stack">
+            <label for="deliveryBaseFee">Базовая плата (руб.)</label>
+            <input type="number" id="deliveryBaseFee" step="0.01" min="0" placeholder="Напр. 200.00" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div class="stack">
+            <label for="deliveryPerKg">Цена за кг (руб./кг)</label>
+            <input type="number" id="deliveryPerKg" step="0.01" min="0" placeholder="Напр. 350.00" />
+          </div>
+          <div class="stack">
+            <label for="deliveryMinCharge">Мин. списание (руб., опц.)</label>
+            <input type="number" id="deliveryMinCharge" step="0.01" min="0" placeholder="Напр. 500.00" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div class="stack">
+            <label for="deliveryMinWeight">Мин. вес (кг, опц.)</label>
+            <input type="number" id="deliveryMinWeight" step="0.01" min="0" placeholder="Напр. 1.00" />
+          </div>
+          <div class="stack">
+            <label>&nbsp;</label>
+            <span class="badge">Формула: base + max(perKg * max(totalWeight, minWeight), minCharge)</span>
+          </div>
+        </div>
+        <div class="stack" style="margin-top:10px;">
+          <label for="deliveryDesc">Описание (необязательно)</label>
+          <textarea id="deliveryDesc" placeholder="Сроки, условия и пр."></textarea>
+          <div class="actions">
+            <button class="btn ok" id="btnAddDelivery">Добавить</button>
+          </div>
+        </div>
+        <div id="deliveryList" class="stack" style="margin-top: 10px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>🧾 Товары</h2>
+        <div class="actions" style="margin-bottom:10px;">
+          <button class="btn ok" id="btnAddProduct">Добавить товар</button>
+        </div>
+        <div class="table-wrap">
+          <table id="productsTable">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Название</th>
+                <th>Ссылка</th>
+                <th>Вес, кг (за 1 шт)</th>
+                <th>Кол-во</th>
+                <th>Цена, CNY</th>
+                <th>Доставка</th>
+                <th>Итог, RUB</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="productsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div><strong>Итого к оплате (RUB):</strong> <span id="grandTotal">0.00</span></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // App State
+  const state = {
+    currencyRate: 13.00,
+    deliveryOptions: [], // { id, name, baseFeeRUB, pricePerKgRUB, minChargeRUB, minWeightKg, description }
+    products: [] // { id, name, url, weightKg, quantity, unitPriceYuan, deliveryOptionName, finalPriceRUB }
+  };
+
+  // Cloud persistence (Pages Functions + KV)
+  let saveTimer = null;
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    setSaving('saving');
+    saveTimer = setTimeout(saveToCloud, 500);
+  }
+
+  async function loadFromCloud(){
+    try{
+      const res = await fetch('/api/data', { credentials: 'include' });
+      if(!res.ok) return;
+      const data = await res.json();
+      state.currencyRate = Number(data.currencyRate) || state.currencyRate;
+      state.deliveryOptions = Array.isArray(data.deliveryOptions) ? data.deliveryOptions : [];
+      state.products = Array.isArray(data.products) ? data.products : [];
+      el.currencyRate.value = state.currencyRate.toFixed(2);
+      renderDeliveryList();
+      renderProducts();
+      recalcAll();
+      setSaving('saved');
+    }catch(e){ console.warn('loadFromCloud failed', e); }
+  }
+
+  async function saveToCloud(){
+    try{
+      const payload = {
+        currencyRate: Number(state.currencyRate),
+        deliveryOptions: state.deliveryOptions,
+        products: state.products
+      };
+      const res = await fetch('/api/data', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      if(!res.ok) { setSaving('error'); return; }
+      setSaving('saved');
+    }catch(e){ console.warn('saveToCloud failed', e); }
+  }
+
+  // Elements
+  const el = {
+    authCard: document.getElementById('authCard'),
+    app: document.getElementById('app'),
+    accessKeyInput: document.getElementById('accessKeyInput'),
+    authError: document.getElementById('authError'),
+    btnLogin: document.getElementById('btnLogin'),
+
+    currencyRate: document.getElementById('currencyRate'),
+    btnUpdateRate: document.getElementById('btnUpdateRate'),
+
+    deliveryName: document.getElementById('deliveryName'),
+    deliveryBaseFee: document.getElementById('deliveryBaseFee'),
+    deliveryPerKg: document.getElementById('deliveryPerKg'),
+    deliveryMinCharge: document.getElementById('deliveryMinCharge'),
+    deliveryMinWeight: document.getElementById('deliveryMinWeight'),
+    deliveryDesc: document.getElementById('deliveryDesc'),
+    btnAddDelivery: document.getElementById('btnAddDelivery'),
+    deliveryList: document.getElementById('deliveryList'),
+
+    btnAddProduct: document.getElementById('btnAddProduct'),
+    productsBody: document.getElementById('productsBody'),
+
+    btnExportXlsx: document.getElementById('btnExportXlsx'),
+    btnClearAll: document.getElementById('btnClearAll'),
+
+    grandTotal: document.getElementById('grandTotal'),
+    saveStatus: document.getElementById('saveStatus'),
+  };
+
+  // Save status helper (moved here so it can access `el.saveStatus`)
+  function setSaving(status){
+    if(!el.saveStatus) return;
+    if(status === 'saving'){
+      el.saveStatus.textContent = 'Сохранение…';
+      el.saveStatus.style.background = '#fff3cd';
+      el.saveStatus.style.color = '#92400e';
+    } else if(status === 'saved'){
+      el.saveStatus.textContent = 'Сохранено';
+      el.saveStatus.style.background = '#dcfce7';
+      el.saveStatus.style.color = '#166534';
+    } else if(status === 'error'){
+      el.saveStatus.textContent = 'Ошибка сохранения';
+      el.saveStatus.style.background = '#fee2e2';
+      el.saveStatus.style.color = '#991b1b';
+    }
+  }
+
+  // Helpers
+  // Legacy auth helpers no longer used
+  function showAuthError() {}
+  function hideAuthError() {}
+
+  function fmt2(n){ return (Number(n)||0).toFixed(2); }
+  function isValidUrl(u){ try { new URL(u); return true; } catch { return false; } }
+
+  function validateNonEmptyStr(v){ return typeof v === 'string' && v.trim().length > 0; }
+  function validatePositiveInt(v){ const n = Number(v); return Number.isInteger(n) && n > 0; }
+  function validatePositiveNum(v){ const n = Number(v); return Number.isFinite(n) && n > 0; }
+
+  function recalcProduct(p){
+    const goodsRUB = Number(p.unitPriceYuan) * Number(p.quantity) * Number(state.currencyRate);
+    const delivery = state.deliveryOptions.find(d => d.name === p.deliveryOptionName);
+    let deliveryCost = 0;
+    if(delivery){
+      const base = Number(delivery.baseFeeRUB) || 0;
+      const perKg = Number(delivery.pricePerKgRUB) || 0;
+      const minCh = Number(delivery.minChargeRUB) || 0;
+      const minW  = Number(delivery.minWeightKg) || 0;
+      const totalWeight = Math.max((Number(p.weightKg)||0) * (Number(p.quantity)||0), minW);
+      deliveryCost = base + Math.max(perKg * totalWeight, minCh);
+    }
+    p.finalPriceRUB = goodsRUB + deliveryCost;
+    p._deliveryCostRUB = deliveryCost; // cache for export
+    p._goodsRUB = goodsRUB;
+    return p.finalPriceRUB;
+  }
+
+  function recalcAll(){
+    let sum = 0;
+    state.products.forEach(p => sum += recalcProduct(p));
+    el.grandTotal.textContent = fmt2(sum);
+  }
+
+  function renderDeliveryList(){
+    el.deliveryList.innerHTML = '';
+    if(state.deliveryOptions.length === 0){
+      const empty = document.createElement('div');
+      empty.textContent = 'Нет вариантов доставки';
+      el.deliveryList.appendChild(empty);
+      return;
+    }
+    state.deliveryOptions.forEach(d => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.margin = '0';
+      card.style.padding = '12px';
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+          <div>
+            <div><strong>${d.name}</strong></div>
+            <div style="font-size:13px;color:#4a5568;">
+              base: ${fmt2(d.baseFeeRUB)} RUB; perKg: ${fmt2(d.pricePerKgRUB)} RUB/кг; minCharge: ${fmt2(d.minChargeRUB||0)}; minWeight: ${fmt2(d.minWeightKg||0)} кг
+            </div>
+            ${d.description ? `<div style="color:#4a5568; font-size:13px;">${d.description}</div>` : ''}
+          </div>
+          <div class="actions">
+            <button class="btn secondary" data-act="edit">Редактировать</button>
+            <button class="btn danger" data-act="del">Удалить</button>
+          </div>
+        </div>
+      `;
+      card.querySelector('[data-act="edit"]').onclick = () => {
+        const name = prompt('Название', d.name) ?? d.name;
+        const base = prompt('Базовая плата (руб.)', String(d.baseFeeRUB ?? 0)) ?? String(d.baseFeeRUB ?? 0);
+        const perKg = prompt('Цена за кг (руб./кг)', String(d.pricePerKgRUB ?? 0)) ?? String(d.pricePerKgRUB ?? 0);
+        const minCh = prompt('Мин. списание (руб., опц.)', String(d.minChargeRUB ?? 0)) ?? String(d.minChargeRUB ?? 0);
+        const minW = prompt('Мин. вес (кг, опц.)', String(d.minWeightKg ?? 0)) ?? String(d.minWeightKg ?? 0);
+        const desc = prompt('Описание (опционально)', d.description || '') ?? d.description;
+        if(!validateNonEmptyStr(name)) return alert('Название не может быть пустым');
+        if(Number(base) < 0 || Number(perKg) < 0 || Number(minCh) < 0 || Number(minW) < 0) return alert('Числа не могут быть отрицательными');
+        d.name = name.trim();
+        d.baseFeeRUB = Number(Number(base).toFixed(2));
+        d.pricePerKgRUB = Number(Number(perKg).toFixed(2));
+        d.minChargeRUB = Number(Number(minCh).toFixed(2));
+        d.minWeightKg = Number(Number(minW).toFixed(2));
+        d.description = (desc||'').trim();
+        // если имя изменилось, обновим у товаров выбранный вариант,
+        // оставим как текст (товар хранит имя варианта)
+        renderDeliveryList();
+        renderProducts();
+        recalcAll();
+        scheduleSave();
+      };
+      card.querySelector('[data-act="del"]').onclick = () => {
+        if(!confirm('Удалить вариант доставки?')) return;
+        state.deliveryOptions = state.deliveryOptions.filter(x => x !== d);
+        // удалить у товаров ссылку на удаленный вариант
+        state.products.forEach(p => { if(p.deliveryOptionName === d.name) p.deliveryOptionName = ''; });
+        renderDeliveryList();
+        renderProducts();
+        recalcAll();
+        scheduleSave();
+      };
+      el.deliveryList.appendChild(card);
+    });
+  }
+
+  function renderProducts(){
+    el.productsBody.innerHTML = '';
+    state.products.forEach((p, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${idx+1}</td>
+        <td><input type="text" value="${p.name}"/></td>
+        <td class="link-cell">
+          <input type="url" placeholder="https://..." value="${p.url || ''}"/>
+          ${p.url && isValidUrl(p.url) ? `<a href="${p.url}" target="_blank" title="Открыть ссылку">🔗</a>` : ''}
+        </td>
+        <td><input type="number" min="0" step="0.01" value="${p.weightKg ?? 0}"/></td>
+        <td><input type="number" min="1" step="1" value="${p.quantity}"/></td>
+        <td><input type="number" min="0" step="0.01" value="${p.unitPriceYuan}"/></td>
+        <td>
+          <select>
+            <option value="">— Выбрать —</option>
+            ${state.deliveryOptions.map(d => `<option value="${d.name}" ${d.name===p.deliveryOptionName?'selected':''}>${d.name}</option>`).join('')}
+          </select>
+        </td>
+        <td class="right final">${fmt2(p.finalPriceRUB)}</td>
+        <td class="actions">
+          <button class="btn danger">Удалить</button>
+        </td>
+      `;
+      const nameI = tr.children[1].querySelector('input');
+      const urlI  = tr.children[2].querySelector('input');
+      const weightI = tr.children[3].querySelector('input');
+      const qtyI  = tr.children[4].querySelector('input');
+      const priceI= tr.children[5].querySelector('input');
+      const select= tr.children[6].querySelector('select');
+      const delBtn= tr.children[8].querySelector('button');
+
+      nameI.oninput = () => { p.name = nameI.value; scheduleSave(); };
+      urlI.oninput = () => {
+        p.url = urlI.value.trim();
+        // manage icon
+        const cell = urlI.parentElement;
+        let a = cell.querySelector('a');
+        if(p.url && isValidUrl(p.url)){
+          if(!a){ a = document.createElement('a'); a.textContent='🔗'; a.target='_blank'; a.title='Открыть ссылку'; cell.appendChild(a); }
+          a.href = p.url;
+          a.classList.remove('hidden');
+        } else if(a){ a.classList.add('hidden'); }
+        scheduleSave();
+      };
+      weightI.oninput = () => { const v=Number(weightI.value); if(v<0 || !Number.isFinite(v)) return; p.weightKg = v; tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
+      qtyI.oninput = () => { if(!validatePositiveInt(qtyI.value)) return; p.quantity = Number(qtyI.value); tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
+      priceI.oninput = () => { if(!validatePositiveNum(priceI.value)) return; p.unitPriceYuan = Number(priceI.value); tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
+      select.onchange = () => { p.deliveryOptionName = select.value; tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
+      delBtn.onclick = () => { if(!confirm('Удалить товар?')) return; state.products = state.products.filter(x => x !== p); renderProducts(); recalcAll(); scheduleSave(); };
+
+      el.productsBody.appendChild(tr);
+    });
+  }
+
+  function addProduct(){
+    const p = { id: Date.now(), name: '', url: '', weightKg: 0, quantity: 1, unitPriceYuan: 0.00, deliveryOptionName: '', finalPriceRUB: 0 };
+    recalcProduct(p);
+    state.products.push(p);
+    renderProducts();
+    recalcAll();
+  }
+
+  // Event wiring (auth removed)
+
+  el.btnUpdateRate.onclick = () => {
+    const v = Number(el.currencyRate.value);
+    if(!Number.isFinite(v) || v <= 0){ alert('Курс должен быть > 0'); return; }
+    state.currencyRate = Number(v.toFixed(2));
+    el.currencyRate.value = state.currencyRate.toFixed(2);
+    recalcAll();
+    scheduleSave();
+  };
+
+  el.btnAddDelivery.onclick = () => {
+    const name = (el.deliveryName.value||'').trim();
+    const base = Number(el.deliveryBaseFee.value);
+    const perKg = Number(el.deliveryPerKg.value);
+    const minCh = Number(el.deliveryMinCharge.value||0);
+    const minW  = Number(el.deliveryMinWeight.value||0);
+    const desc = (el.deliveryDesc.value||'').trim();
+    if(!validateNonEmptyStr(name)) return alert('Название не может быть пустым');
+    if(base < 0 || perKg < 0 || minCh < 0 || minW < 0) return alert('Числа не могут быть отрицательными');
+    state.deliveryOptions.push({ id: Date.now(), name, baseFeeRUB: Number(base.toFixed(2)), pricePerKgRUB: Number(perKg.toFixed(2)), minChargeRUB: Number(minCh.toFixed(2)), minWeightKg: Number(minW.toFixed(2)), description: desc });
+    el.deliveryName.value = '';
+    el.deliveryBaseFee.value = '';
+    el.deliveryPerKg.value = '';
+    el.deliveryMinCharge.value = '';
+    el.deliveryMinWeight.value = '';
+    el.deliveryDesc.value = '';
+    renderDeliveryList();
+    renderProducts();
+    recalcAll();
+    scheduleSave();
+  };
+
+  el.btnAddProduct.onclick = () => { addProduct(); scheduleSave(); };
+  el.btnClearAll.onclick = async () => {
+    if(!confirm('Очистить все данные?')) return;
+    state.deliveryOptions = [];
+    state.products = [];
+    renderDeliveryList();
+    renderProducts();
+    recalcAll();
+    await saveToCloud();
+  };
+
+  el.btnExportXlsx.onclick = () => {
+    // Build data according to required JSON structure
+    const jsonData = {
+      currencyRate: Number(state.currencyRate),
+      deliveryOptions: state.deliveryOptions.map(d => ({ name: d.name, cost: Number((d.baseFeeRUB||0) + (d.pricePerKgRUB||0)), description: d.description || '' })),
+      products: state.products.map(p => ({
+        name: p.name,
+        url: p.url || '',
+        weightKg: Number(p.weightKg||0),
+        quantity: Number(p.quantity),
+        unitPriceYuan: Number(Number(p.unitPriceYuan).toFixed(2)),
+        deliveryOption: p.deliveryOptionName || '',
+        finalPriceRUB: Number(Number(recalcProduct(p)).toFixed(2))
+      }))
+    };
+
+    // Worksheet: one row per product + delivery info
+    const rows = jsonData.products.map((prod, i) => ({
+      Название: prod.name,
+      Ссылка: prod.url,
+      'Вес (кг) за 1 шт': prod.weightKg,
+      Количество: prod.quantity,
+      'Цена (CNY)': prod.unitPriceYuan,
+      'Вариант доставки': prod.deliveryOption,
+      'Стоимость доставки (RUB)': Number((state.products[i]?._deliveryCostRUB)||0),
+      'Курс (RUB/CNY)': jsonData.currencyRate,
+      'Итог (RUB)': prod.finalPriceRUB
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Товары');
+    const date = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `china-goods-${date}.xlsx`);
+  };
+
+  // Startup: auth removed — show app immediately and load cloud data
+  el.authCard.classList.add('hidden');
+  el.app.classList.remove('hidden');
+  el.currencyRate.value = state.currencyRate.toFixed(2);
+  setSaving('saved');
+  loadFromCloud();
+})();
+</script>
+</body>
+</html>
