@@ -1,0 +1,60 @@
+:root {
+  --primary: #007aff;
+  --danger: #ff3b30;
+  --ok: #34c759;
+  --bg: #f7fafc;
+  --card: #ffffff;
+  --text: #1a202c;
+  --muted: #4a5568;
+  --border: #e2e8f0;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+.container { max-width: 1100px; margin: 0 auto; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+h1 { margin: 0 0 8px; font-size: 22px; }
+h2 { margin: 0 0 10px; font-size: 18px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
+label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+input, select, button, textarea {
+  font: inherit;
+}
+input[type="text"], input[type="number"], textarea, select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+textarea { resize: vertical; min-height: 60px; }
+.btn {
+  padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; color: #fff; background: var(--primary);
+}
+.btn.secondary { background: #a0aec0; color: #fff; }
+.btn.danger { background: var(--danger); }
+.btn.ok { background: var(--ok); }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: center; font-size: 14px; }
+th { background: #f1f5f9; text-transform: uppercase; font-size: 12px; color: var(--muted); }
+.right { text-align: right; }
+.actions { display: flex; gap: 8px; justify-content: center; }
+.error { color: var(--danger); font-weight: 600; }
+.hidden { display: none !important; }
+.badge { padding: 2px 8px; background: #edf2f7; border-radius: 999px; font-size: 12px; color: #2d3748; }
+.stack { display: grid; gap: 10px; }
