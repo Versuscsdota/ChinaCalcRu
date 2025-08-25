@@ -41,6 +41,11 @@ input[type="text"], input[type="number"], textarea, select {
   border-radius: 8px;
   background: #fff;
 }
+/* Validation states */
+.invalid {
+  border-color: var(--danger) !important;
+  background: #fff5f5;
+}
 textarea { resize: vertical; min-height: 60px; }
 .btn {
   padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; color: #fff; background: var(--primary);

@@ -107,6 +107,19 @@
   function validateNonEmptyStr(v){ return typeof v === 'string' && v.trim().length > 0; }
   function validatePositiveInt(v){ const n = Number(v); return Number.isInteger(n) && n > 0; }
   function validatePositiveNum(v){ const n = Number(v); return Number.isFinite(n) && n > 0; }
+  function validateNonNegativeNum(v){ const n = Number(v); return Number.isFinite(n) && n >= 0; }
+
+  // UI validation helpers
+  function setInvalid(input, msg){
+    if(!input) return;
+    input.classList.add('invalid');
+    if(msg) input.title = msg; else input.removeAttribute('title');
+  }
+  function clearInvalid(input){
+    if(!input) return;
+    input.classList.remove('invalid');
+    input.removeAttribute('title');
+  }
 
   function recalcProduct(p){
     const goodsRUB = Number(p.unitPriceYuan) * Number(p.quantity) * Number(state.currencyRate);
@@ -251,7 +264,13 @@
       const select= tr.children[6].querySelector('select');
       const delBtn= tr.children[8].querySelector('button');
 
-      nameI.oninput = () => { p.name = nameI.value; scheduleSave(); };
+      // Name: required non-empty
+      nameI.oninput = () => {
+        p.name = nameI.value;
+        if(!validateNonEmptyStr(p.name)) setInvalid(nameI, 'Название не может быть пустым');
+        else clearInvalid(nameI);
+        scheduleSave();
+      };
       urlI.oninput = () => {
         p.url = urlI.value.trim();
         // manage icon
@@ -261,12 +280,58 @@
           if(!a){ a = document.createElement('a'); a.textContent='🔗'; a.target='_blank'; a.title='Открыть ссылку'; cell.appendChild(a); }
           a.href = p.url;
           a.classList.remove('hidden');
-        } else if(a){ a.classList.add('hidden'); }
+          clearInvalid(urlI);
+        } else {
+          if(a){ a.classList.add('hidden'); }
+          if(p.url.length>0) setInvalid(urlI, 'Некорректный URL'); else clearInvalid(urlI);
+        }
         scheduleSave();
       };
-      weightI.oninput = () => { const v=Number(weightI.value); if(v<0 || !Number.isFinite(v)) return; p.weightKg = v; tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
-      qtyI.oninput = () => { if(!validatePositiveInt(qtyI.value)) return; p.quantity = Number(qtyI.value); tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
-      priceI.oninput = () => { if(!validatePositiveNum(priceI.value)) return; p.unitPriceYuan = Number(priceI.value); tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
+      // Weight: non-negative number
+      weightI.oninput = () => {
+        const v = Number(weightI.value);
+        if(v < 0 || !Number.isFinite(v)) { setInvalid(weightI, 'Вес не может быть отрицательным'); return; }
+        clearInvalid(weightI);
+        p.weightKg = v;
+        tr.querySelector('.final').textContent = fmt2(recalcProduct(p));
+        recalcAll();
+        scheduleSave();
+      };
+      weightI.onblur = () => {
+        let v = Number(weightI.value);
+        if(!Number.isFinite(v) || v < 0) v = 0;
+        weightI.value = Number(v).toFixed(2);
+      };
+      
+      // Quantity: positive integer
+      qtyI.oninput = () => {
+        if(!validatePositiveInt(qtyI.value)) { setInvalid(qtyI, 'Количество должно быть целым > 0'); return; }
+        clearInvalid(qtyI);
+        p.quantity = Number(qtyI.value);
+        tr.querySelector('.final').textContent = fmt2(recalcProduct(p));
+        recalcAll();
+        scheduleSave();
+      };
+      qtyI.onblur = () => {
+        let n = parseInt(qtyI.value, 10);
+        if(!Number.isInteger(n) || n <= 0) n = 1;
+        qtyI.value = String(n);
+      };
+
+      // Unit price (CNY): non-negative number
+      priceI.oninput = () => {
+        if(!validateNonNegativeNum(priceI.value)) { setInvalid(priceI, 'Цена не может быть отрицательной'); return; }
+        clearInvalid(priceI);
+        p.unitPriceYuan = Number(priceI.value);
+        tr.querySelector('.final').textContent = fmt2(recalcProduct(p));
+        recalcAll();
+        scheduleSave();
+      };
+      priceI.onblur = () => {
+        let v = Number(priceI.value);
+        if(!Number.isFinite(v) || v < 0) v = 0;
+        priceI.value = Number(v).toFixed(2);
+      };
       select.onchange = () => { p.deliveryOptionName = select.value; tr.querySelector('.final').textContent = fmt2(recalcProduct(p)); recalcAll(); scheduleSave(); };
       delBtn.onclick = () => { if(!confirm('Удалить товар?')) return; state.products = state.products.filter(x => x !== p); renderProducts(); recalcAll(); scheduleSave(); };
 
