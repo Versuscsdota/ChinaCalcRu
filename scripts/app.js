@@ -895,8 +895,8 @@ async function sendChat(){
   async function checkAuth(){
     try{
       const res = await fetch('/api/auth', { credentials: 'include' });
-      const data = await res.json().catch(()=>({ ok:false }));
-      if(res.ok && data.ok){ await initApp(); }
+      const data = await res.json().catch(()=>({ authenticated:false }));
+      if(res.ok && (data.authenticated || data.ok)){ await initApp(); }
       else {
         el.app.classList.add('hidden');
         el.authCard.classList.remove('hidden');
@@ -914,8 +914,8 @@ async function sendChat(){
       if(!key) { showAuthError('Введите ключ доступа'); return; }
       try{
         const res = await fetch('/api/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ key }) });
-        const data = await res.json().catch(()=>({ ok:false }));
-        if(res.ok && data.ok){ await initApp(); }
+        const data = await res.json().catch(()=>({ authenticated:false }));
+        if(res.ok && (data.authenticated || data.ok)){ await initApp(); }
         else { showAuthError(data.error || 'Неверный ключ'); }
       }catch{ showAuthError('Сбой входа'); }
     };
