@@ -61,6 +61,44 @@
         <div class="card">
           <h2>📊 Дашборд</h2>
           <div><strong>Итого к оплате (RUB):</strong> <span id="grandTotal">0.00</span></div>
+          <div class="kpis" style="display:grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap:10px; margin-top:10px;">
+            <div class="card" style="padding:10px; margin:0;">
+              <div class="muted">Заказы (всего)</div>
+              <div id="kpiOrders" class="kpi">0</div>
+            </div>
+            <div class="card" style="padding:10px; margin:0;">
+              <div class="muted">В пути</div>
+              <div id="kpiInTransit" class="kpi">0</div>
+            </div>
+            <div class="card" style="padding:10px; margin:0;">
+              <div class="muted">Продажи (RUB)</div>
+              <div id="kpiSales" class="kpi">0.00</div>
+            </div>
+            <div class="card" style="padding:10px; margin:0;">
+              <div class="muted">Расходы (RUB)</div>
+              <div id="kpiExpenses" class="kpi">0.00</div>
+            </div>
+            <div class="card" style="padding:10px; margin:0;">
+              <div class="muted">Маржа (RUB)</div>
+              <div id="kpiMargin" class="kpi">0.00</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>🚚 Отгрузки в пути</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Курьер</th>
+                  <th>Трек-номер</th>
+                  <th>Статус</th>
+                  <th>ETA</th>
+                </tr>
+              </thead>
+              <tbody id="shipmentsBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 

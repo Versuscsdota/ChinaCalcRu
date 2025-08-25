@@ -27,6 +27,8 @@
       renderProducts();
       recalcAll();
       setSaving('saved');
+      // Update dashboard after initial data loaded
+      updateDashboard();
     }catch(e){ console.warn('loadFromCloud failed', e); }
   }
 
@@ -80,6 +82,14 @@
 
     grandTotal: document.getElementById('grandTotal'),
     saveStatus: document.getElementById('saveStatus'),
+
+    // Dashboard KPIs & Shipments
+    kpiOrders: document.getElementById('kpiOrders'),
+    kpiInTransit: document.getElementById('kpiInTransit'),
+    kpiSales: document.getElementById('kpiSales'),
+    kpiExpenses: document.getElementById('kpiExpenses'),
+    kpiMargin: document.getElementById('kpiMargin'),
+    shipmentsBody: document.getElementById('shipmentsBody'),
 
     // AI Chat
     chatMessages: document.getElementById('chatMessages'),
@@ -167,6 +177,56 @@
     let sum = 0;
     state.products.forEach(p => sum += recalcProduct(p));
     el.grandTotal.textContent = fmt2(sum);
+  }
+
+  // Dashboard data: KPIs and shipments-in-transit
+  async function fetchStats(){
+    try{
+      const res = await fetch('/api/stats', { credentials: 'include' });
+      if(!res.ok) return null;
+      return await res.json();
+    }catch{ return null; }
+  }
+  async function fetchShipments(){
+    try{
+      const res = await fetch('/api/shipments', { credentials: 'include' });
+      if(!res.ok) return { items: [] };
+      return await res.json();
+    }catch{ return { items: [] }; }
+  }
+  function renderKPIs(stats){
+    if(!stats) return;
+    if(el.kpiOrders) el.kpiOrders.textContent = String(stats.orders?.total ?? 0);
+    if(el.kpiInTransit) el.kpiInTransit.textContent = String(stats.shipments?.inTransit ?? 0);
+    if(el.kpiSales) el.kpiSales.textContent = fmt2(stats.finance?.salesRUB ?? 0);
+    if(el.kpiExpenses) el.kpiExpenses.textContent = fmt2(stats.finance?.expensesRUB ?? 0);
+    if(el.kpiMargin) el.kpiMargin.textContent = fmt2(stats.finance?.marginRUB ?? 0);
+  }
+  function renderShipmentsTable(list){
+    if(!el.shipmentsBody) return;
+    el.shipmentsBody.innerHTML = '';
+    const inTransit = new Set(['label','in_transit','customs']);
+    list.filter(s => inTransit.has(s.status)).forEach(s => {
+      const tr = document.createElement('tr');
+      const eta = s.eta ? new Date(s.eta) : null;
+      tr.innerHTML = `
+        <td>${(s.carrier||'').toString()}</td>
+        <td>${(s.trackingNumber||'').toString()}</td>
+        <td>${(s.status||'').toString()}</td>
+        <td>${eta ? eta.toLocaleDateString() : ''}</td>
+      `;
+      el.shipmentsBody.appendChild(tr);
+    });
+    if(el.shipmentsBody.children.length === 0){
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="4" class="muted">Нет отгрузок в пути</td>';
+      el.shipmentsBody.appendChild(tr);
+    }
+  }
+  async function updateDashboard(){
+    const [stats, shipments] = await Promise.all([fetchStats(), fetchShipments()]);
+    if(stats) renderKPIs(stats);
+    renderShipmentsTable(Array.isArray(shipments?.items) ? shipments.items : []);
   }
 
   function renderDeliveryList(){
@@ -386,6 +446,9 @@
         if(n === 'ai'){
           // ensure chat history visible when opening AI tab
           renderChatHistory();
+        }
+        if(n === 'dashboard'){
+          updateDashboard();
         }
       } else {
         btns[i].classList.remove('active');
