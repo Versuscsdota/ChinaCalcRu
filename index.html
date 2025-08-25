@@ -52,44 +52,11 @@
 
       <div class="card">
         <h2>🚚 Варианты доставки</h2>
-        <div class="row">
-          <div class="stack">
-            <label for="deliveryName">Название</label>
-            <input type="text" id="deliveryName" placeholder="Напр. Авиа" />
-          </div>
-          <div class="stack">
-            <label for="deliveryBaseFee">Базовая плата (руб.)</label>
-            <input type="number" id="deliveryBaseFee" step="0.01" min="0" placeholder="Напр. 200.00" />
-          </div>
+        <div class="actions" style="margin:8px 0 12px; justify-content: flex-start;">
+          <button class="btn ok" id="btnOpenDeliveryModal">Добавить вариант доставки</button>
+          <span class="badge" style="margin-left:8px;">Формула: base + max(perKg * max(totalWeight, minWeight), minCharge)</span>
         </div>
-        <div class="row" style="margin-top:10px;">
-          <div class="stack">
-            <label for="deliveryPerKg">Цена за кг (руб./кг)</label>
-            <input type="number" id="deliveryPerKg" step="0.01" min="0" placeholder="Напр. 350.00" />
-          </div>
-          <div class="stack">
-            <label for="deliveryMinCharge">Мин. списание (руб., опц.)</label>
-            <input type="number" id="deliveryMinCharge" step="0.01" min="0" placeholder="Напр. 500.00" />
-          </div>
-        </div>
-        <div class="row" style="margin-top:10px;">
-          <div class="stack">
-            <label for="deliveryMinWeight">Мин. вес (кг, опц.)</label>
-            <input type="number" id="deliveryMinWeight" step="0.01" min="0" placeholder="Напр. 1.00" />
-          </div>
-          <div class="stack">
-            <label>&nbsp;</label>
-            <span class="badge">Формула: base + max(perKg * max(totalWeight, minWeight), minCharge)</span>
-          </div>
-        </div>
-        <div class="stack" style="margin-top:10px;">
-          <label for="deliveryDesc">Описание (необязательно)</label>
-          <textarea id="deliveryDesc" placeholder="Сроки, условия и пр."></textarea>
-          <div class="actions">
-            <button class="btn ok" id="btnAddDelivery">Добавить</button>
-          </div>
-        </div>
-        <div id="deliveryList" class="stack" style="margin-top: 10px;"></div>
+        <div id="deliveryList" class="stack"></div>
       </div>
 
       <div class="card">
@@ -123,6 +90,60 @@
     </div>
   </div>
 
-<script src="scripts/app.js"></script>
+  <!-- AI Assistant -->
+  <div class="container">
+    <div id="ai" class="card">
+      <h2>🤖 Помощник (Claude)</h2>
+      <div id="chatMessages" class="stack" style="max-height:220px; overflow:auto; gap:8px;"></div>
+      <div class="row" style="margin-top:10px;">
+        <input type="text" id="chatInput" placeholder="Спросите у ИИ…" />
+        <button class="btn" id="chatSend">Отправить</button>
+      </div>
+      <span class="badge" style="margin-top:8px;">ИИ может помогать с расчётами и объяснениями</span>
+    </div>
+  </div>
+
+  <!-- Modal: Add Delivery Option -->
+  <div id="deliveryModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="deliveryModalTitle">
+    <div class="modal-content">
+      <h3 id="deliveryModalTitle" style="margin-top:0;">Новый вариант доставки</h3>
+      <div class="row">
+        <div class="stack">
+          <label for="dmName">Название</label>
+          <input type="text" id="dmName" placeholder="Напр. Авиа" />
+        </div>
+        <div class="stack">
+          <label for="dmBase">Базовая плата (руб.)</label>
+          <input type="number" id="dmBase" step="0.01" min="0" placeholder="Напр. 200.00" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="stack">
+          <label for="dmPerKg">Цена за кг (руб./кг)</label>
+          <input type="number" id="dmPerKg" step="0.01" min="0" placeholder="Напр. 350.00" />
+        </div>
+        <div class="stack">
+          <label for="dmMinCh">Мин. списание (руб., опц.)</label>
+          <input type="number" id="dmMinCh" step="0.01" min="0" placeholder="Напр. 500.00" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="stack">
+          <label for="dmMinW">Мин. вес (кг, опц.)</label>
+          <input type="number" id="dmMinW" step="0.01" min="0" placeholder="Напр. 1.00" />
+        </div>
+        <div class="stack">
+          <label for="dmDesc">Описание (необязательно)</label>
+          <input type="text" id="dmDesc" placeholder="Сроки, условия и пр." />
+        </div>
+      </div>
+      <div class="actions" style="margin-top:14px; justify-content: flex-end;">
+        <button class="btn secondary" id="btnDeliveryCancel">Отмена</button>
+        <button class="btn ok" id="btnDeliverySave">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/app.js"></script>
 </body>
 </html>

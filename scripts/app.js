@@ -59,14 +59,18 @@
     currencyRate: document.getElementById('currencyRate'),
     btnUpdateRate: document.getElementById('btnUpdateRate'),
 
-    deliveryName: document.getElementById('deliveryName'),
-    deliveryBaseFee: document.getElementById('deliveryBaseFee'),
-    deliveryPerKg: document.getElementById('deliveryPerKg'),
-    deliveryMinCharge: document.getElementById('deliveryMinCharge'),
-    deliveryMinWeight: document.getElementById('deliveryMinWeight'),
-    deliveryDesc: document.getElementById('deliveryDesc'),
-    btnAddDelivery: document.getElementById('btnAddDelivery'),
+    // Delivery modal controls
+    btnOpenDeliveryModal: document.getElementById('btnOpenDeliveryModal'),
     deliveryList: document.getElementById('deliveryList'),
+    deliveryModal: document.getElementById('deliveryModal'),
+    dmName: document.getElementById('dmName'),
+    dmBase: document.getElementById('dmBase'),
+    dmPerKg: document.getElementById('dmPerKg'),
+    dmMinCh: document.getElementById('dmMinCh'),
+    dmMinW: document.getElementById('dmMinW'),
+    dmDesc: document.getElementById('dmDesc'),
+    btnDeliveryCancel: document.getElementById('btnDeliveryCancel'),
+    btnDeliverySave: document.getElementById('btnDeliverySave'),
 
     btnAddProduct: document.getElementById('btnAddProduct'),
     productsBody: document.getElementById('productsBody'),
@@ -76,6 +80,11 @@
 
     grandTotal: document.getElementById('grandTotal'),
     saveStatus: document.getElementById('saveStatus'),
+
+    // AI Chat
+    chatMessages: document.getElementById('chatMessages'),
+    chatInput: document.getElementById('chatInput'),
+    chatSend: document.getElementById('chatSend'),
   };
 
   // Save status helper (moved here so it can access `el.saveStatus`)
@@ -349,37 +358,6 @@
 
   // Event wiring (auth removed)
 
-  el.btnUpdateRate.onclick = () => {
-    const v = Number(el.currencyRate.value);
-    if(!Number.isFinite(v) || v <= 0){ alert('Курс должен быть > 0'); return; }
-    state.currencyRate = Number(v.toFixed(2));
-    el.currencyRate.value = state.currencyRate.toFixed(2);
-    recalcAll();
-    scheduleSave();
-  };
-
-  el.btnAddDelivery.onclick = () => {
-    const name = (el.deliveryName.value||'').trim();
-    const base = Number(el.deliveryBaseFee.value);
-    const perKg = Number(el.deliveryPerKg.value);
-    const minCh = Number(el.deliveryMinCharge.value||0);
-    const minW  = Number(el.deliveryMinWeight.value||0);
-    const desc = (el.deliveryDesc.value||'').trim();
-    if(!validateNonEmptyStr(name)) return alert('Название не может быть пустым');
-    if(base < 0 || perKg < 0 || minCh < 0 || minW < 0) return alert('Числа не могут быть отрицательными');
-    state.deliveryOptions.push({ id: Date.now(), name, baseFeeRUB: Number(base.toFixed(2)), pricePerKgRUB: Number(perKg.toFixed(2)), minChargeRUB: Number(minCh.toFixed(2)), minWeightKg: Number(minW.toFixed(2)), description: desc });
-    el.deliveryName.value = '';
-    el.deliveryBaseFee.value = '';
-    el.deliveryPerKg.value = '';
-    el.deliveryMinCharge.value = '';
-    el.deliveryMinWeight.value = '';
-    el.deliveryDesc.value = '';
-    renderDeliveryList();
-    renderProducts();
-    recalcAll();
-    scheduleSave();
-  };
-
   el.btnAddProduct.onclick = () => { addProduct(); scheduleSave(); };
   el.btnClearAll.onclick = async () => {
     if(!confirm('Очистить все данные?')) return;
@@ -389,6 +367,70 @@
     renderProducts();
     recalcAll();
     await saveToCloud();
+  };
+
+  // Delivery Modal logic
+  function openDeliveryModal(){
+    // reset
+    el.dmName.value = '';
+    el.dmBase.value = '';
+    el.dmPerKg.value = '';
+    el.dmMinCh.value = '';
+    el.dmMinW.value = '';
+    el.dmDesc.value = '';
+    [el.dmName, el.dmBase, el.dmPerKg, el.dmMinCh, el.dmMinW].forEach(clearInvalid);
+    el.deliveryModal.classList.remove('hidden');
+    el.deliveryModal.setAttribute('aria-hidden','false');
+    el.dmName.focus();
+  }
+  function closeDeliveryModal(){
+    el.deliveryModal.classList.add('hidden');
+    el.deliveryModal.setAttribute('aria-hidden','true');
+  }
+  el.btnOpenDeliveryModal.onclick = openDeliveryModal;
+  el.btnDeliveryCancel.onclick = closeDeliveryModal;
+  el.btnDeliverySave.onclick = () => {
+    const name = (el.dmName.value||'').trim();
+    const base = Number(el.dmBase.value);
+    const perKg = Number(el.dmPerKg.value);
+    const minCh = Number(el.dmMinCh.value||0);
+    const minW  = Number(el.dmMinW.value||0);
+    const desc = (el.dmDesc.value||'').trim();
+
+    let valid = true;
+    if(!validateNonEmptyStr(name)) { setInvalid(el.dmName, 'Название не может быть пустым'); valid = false; } else clearInvalid(el.dmName);
+    if(!(validateNonNegativeNum(base))) { setInvalid(el.dmBase, 'Не может быть отрицательным'); valid=false; } else clearInvalid(el.dmBase);
+    if(!(validateNonNegativeNum(perKg))) { setInvalid(el.dmPerKg, 'Не может быть отрицательным'); valid=false; } else clearInvalid(el.dmPerKg);
+    if(!(validateNonNegativeNum(minCh))) { setInvalid(el.dmMinCh, 'Не может быть отрицательным'); valid=false; } else clearInvalid(el.dmMinCh);
+    if(!(validateNonNegativeNum(minW))) { setInvalid(el.dmMinW, 'Не может быть отрицательным'); valid=false; } else clearInvalid(el.dmMinW);
+    if(!valid) return;
+
+    state.deliveryOptions.push({
+      id: Date.now(),
+      name,
+      baseFeeRUB: Number(base.toFixed(2)),
+      pricePerKgRUB: Number(perKg.toFixed(2)),
+      minChargeRUB: Number(minCh.toFixed(2)),
+      minWeightKg: Number(minW.toFixed(2)),
+      description: desc
+    });
+    closeDeliveryModal();
+    renderDeliveryList();
+    renderProducts();
+    recalcAll();
+    scheduleSave();
+  };
+  // Close modal on Esc and backdrop click
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !el.deliveryModal.classList.contains('hidden')) closeDeliveryModal(); });
+  el.deliveryModal.addEventListener('click', (e) => { if(e.target === el.deliveryModal) closeDeliveryModal(); });
+
+  el.btnUpdateRate.onclick = () => {
+    const v = Number(el.currencyRate.value);
+    if(!Number.isFinite(v) || v <= 0){ alert('Курс должен быть > 0'); return; }
+    state.currencyRate = Number(v.toFixed(2));
+    el.currencyRate.value = state.currencyRate.toFixed(2);
+    recalcAll();
+    scheduleSave();
   };
 
   el.btnExportXlsx.onclick = () => {
@@ -514,6 +556,74 @@
     const date = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, `china-goods-${date}.xlsx`);
   };
+
+  // ==========================
+  // AI Chat (Claude via /api/ai)
+  // ==========================
+  function appendChat(role, text){
+    if(!el.chatMessages) return;
+    const wrap = document.createElement('div');
+    wrap.style.padding = '8px 10px';
+    wrap.style.borderRadius = '8px';
+    wrap.style.whiteSpace = 'pre-wrap';
+    wrap.style.wordBreak = 'break-word';
+    if(role === 'user'){
+      wrap.style.background = '#eef2ff';
+    } else {
+      wrap.style.background = '#f1f5f9';
+    }
+    wrap.textContent = text;
+    el.chatMessages.appendChild(wrap);
+    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+  }
+
+  async function sendChat(){
+    if(!el.chatInput || !el.chatSend) return;
+    const q = (el.chatInput.value || '').trim();
+    if(!q) return;
+    appendChat('user', q);
+    el.chatInput.value = '';
+
+    const thinking = document.createElement('div');
+    thinking.style.padding = '8px 10px';
+    thinking.style.borderRadius = '8px';
+    thinking.style.background = '#f1f5f9';
+    thinking.textContent = '…';
+    el.chatMessages.appendChild(thinking);
+    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+
+    el.chatSend.disabled = true;
+    try{
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: q })
+      });
+      const data = await res.json().catch(() => ({}));
+      thinking.remove();
+      if(!res.ok){
+        appendChat('assistant', `Ошибка: ${data?.error || res.status}`);
+      } else {
+        const answer = (data && (data.answer || (Array.isArray(data.raw?.content) ? data.raw.content.map(p => p.text || '').join('\n') : ''))) || '';
+        appendChat('assistant', String(answer || ''));
+      }
+    }catch(e){
+      thinking.remove();
+      appendChat('assistant', 'Сбой запроса к ИИ');
+    } finally {
+      el.chatSend.disabled = false;
+    }
+  }
+
+  if(el.chatSend){ el.chatSend.onclick = sendChat; }
+  if(el.chatInput){
+    el.chatInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendChat();
+      }
+    });
+  }
 
   // Startup: auth removed — show app immediately and load cloud data
   el.authCard.classList.add('hidden');
