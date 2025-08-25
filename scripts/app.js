@@ -551,69 +551,115 @@
         }
       }
     }
-
     XLSX.utils.book_append_sheet(wb, ws, 'Товары');
     const date = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, `china-goods-${date}.xlsx`);
   };
 
-  // ==========================
-  // AI Chat (Claude via /api/ai)
-  // ==========================
-  function appendChat(role, text){
-    if(!el.chatMessages) return;
-    const wrap = document.createElement('div');
-    wrap.style.padding = '8px 10px';
-    wrap.style.borderRadius = '8px';
-    wrap.style.whiteSpace = 'pre-wrap';
-    wrap.style.wordBreak = 'break-word';
-    if(role === 'user'){
-      wrap.style.background = '#eef2ff';
-    } else {
-      wrap.style.background = '#f1f5f9';
-    }
+// ==========================
+// AI Chat (Claude via /api/ai)
+// ==========================
+// Build concise system context from current app state
+function buildSystemContext(){
+  const productsCount = state.products.length;
+  const deliveriesCount = state.deliveryOptions.length;
+  let sum = 0, totalWeightAll = 0;
+  state.products.forEach(p => {
+    sum += recalcProduct(p);
+    const del = state.deliveryOptions.find(d => d.name === p.deliveryOptionName);
+    const minW = Number(del?.minWeightKg||0);
+    const qty = Number(p.quantity)||0;
+    const unitW = Number(p.weightKg||0);
+    totalWeightAll += Math.max(unitW * qty, minW);
+  });
+  const names = state.deliveryOptions.slice(0,5).map(d => d.name).join(', ');
+  return [
+    'You are a logistics and cost calculation assistant for a China-to-Russia goods calculator UI.',
+    `Currency rate RUB/CNY: ${Number(state.currencyRate).toFixed(2)}`,
+    `Products: ${productsCount}, Delivery options: ${deliveriesCount}`,
+    `Current total (RUB): ${sum.toFixed(2)}, Total weight (kg): ${totalWeightAll.toFixed(3)}`,
+    names ? `Delivery names: ${names}` : ''
+  ].filter(Boolean).join('\n');
+}
+
+// Minimal safe markdown renderer (links, inline code, bold, italics, line breaks)
+function renderMarkdown(text){
+  const esc = (s) => s
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+  let html = esc(String(text || ''));
+  // inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // bold **text**
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // italics *text*
+  html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+  // URLs -> links
+  html = html.replace(/(https?:\/\/[^\s)]+)(?=\s|$)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  // line breaks
+  html = html.replace(/\n/g, '<br/>');
+  return html;
+}
+
+function appendChat(role, text){
+  if(!el.chatMessages) return;
+  const wrap = document.createElement('div');
+  wrap.style.padding = '8px 10px';
+  wrap.style.borderRadius = '8px';
+  wrap.style.whiteSpace = 'pre-wrap';
+  wrap.style.wordBreak = 'break-word';
+  if(role === 'user'){
+    wrap.style.background = '#eef2ff';
+  } else {
+    wrap.style.background = '#f1f5f9';
+  }
+  if(role === 'assistant'){
+    wrap.innerHTML = renderMarkdown(text);
+  } else {
     wrap.textContent = text;
-    el.chatMessages.appendChild(wrap);
-    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
   }
+  el.chatMessages.appendChild(wrap);
+  el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+}
 
-  async function sendChat(){
-    if(!el.chatInput || !el.chatSend) return;
-    const q = (el.chatInput.value || '').trim();
-    if(!q) return;
-    appendChat('user', q);
-    el.chatInput.value = '';
+async function sendChat(){
+  if(!el.chatInput || !el.chatSend) return;
+  const q = (el.chatInput.value || '').trim();
+  if(!q) return;
+  appendChat('user', q);
+  el.chatInput.value = '';
 
-    const thinking = document.createElement('div');
-    thinking.style.padding = '8px 10px';
-    thinking.style.borderRadius = '8px';
-    thinking.style.background = '#f1f5f9';
-    thinking.textContent = '…';
-    el.chatMessages.appendChild(thinking);
-    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+  const thinking = document.createElement('div');
+  thinking.style.padding = '8px 10px';
+  thinking.style.borderRadius = '8px';
+  thinking.style.background = '#f1f5f9';
+  thinking.textContent = '…';
+  el.chatMessages.appendChild(thinking);
+  el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
 
-    el.chatSend.disabled = true;
-    try{
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text: q })
-      });
-      const data = await res.json().catch(() => ({}));
-      thinking.remove();
-      if(!res.ok){
-        appendChat('assistant', `Ошибка: ${data?.error || res.status}`);
-      } else {
-        const answer = (data && (data.answer || (Array.isArray(data.raw?.content) ? data.raw.content.map(p => p.text || '').join('\n') : ''))) || '';
-        appendChat('assistant', String(answer || ''));
-      }
-    }catch(e){
-      thinking.remove();
-      appendChat('assistant', 'Сбой запроса к ИИ');
-    } finally {
-      el.chatSend.disabled = false;
+  el.chatSend.disabled = true;
+  try{
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: q, system: buildSystemContext() })
+    });
+    const data = await res.json().catch(() => ({}));
+    thinking.remove();
+    if(!res.ok){
+      appendChat('assistant', `Ошибка: ${data?.error || res.status}`);
+    } else {
+      const answer = (data && (data.answer || (Array.isArray(data.raw?.content) ? data.raw.content.map(p => p.text || '').join('\n') : ''))) || '';
+      appendChat('assistant', String(answer || ''));
     }
+  }catch(e){
+    thinking.remove();
+    appendChat('assistant', 'Сбой запроса к ИИ');
+  } finally {
+    el.chatSend.disabled = false;
   }
+}
 
   if(el.chatSend){ el.chatSend.onclick = sendChat; }
   if(el.chatInput){

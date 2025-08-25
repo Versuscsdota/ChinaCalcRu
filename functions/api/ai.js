@@ -27,6 +27,48 @@ export async function onRequestPost({ env, request }) {
       });
     }
 
+    // Input validation
+    if (userText.length > 4000) {
+      return new Response(JSON.stringify({ error: 'Prompt too long (max 4000 chars)' }), {
+        status: 400,
+        headers: { 'content-type': 'application/json; charset=utf-8' }
+      });
+    }
+    const allowedModels = new Set([
+      'claude-3-5-sonnet-20240620',
+      'claude-3-5-haiku-20241022',
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229',
+      'claude-3-haiku-20240307'
+    ]);
+    if (!allowedModels.has(model)) {
+      return new Response(JSON.stringify({ error: 'Model not allowed' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } });
+    }
+    if (!Number.isFinite(maxTokens) || maxTokens < 1 || maxTokens > 1024) {
+      return new Response(JSON.stringify({ error: 'max_tokens must be between 1 and 1024' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } });
+    }
+
+    // Basic rate limit per IP (KV-based best-effort)
+    try {
+      const ip = request.headers.get('CF-Connecting-IP') || (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+      const now = new Date();
+      const bucket = now.toISOString().slice(0,16); // YYYY-MM-DDTHH:MM
+      const rlKey = `rl:${ip}:${bucket}`;
+      const limit = 10; // requests per minute
+      let count = 0;
+      try {
+        const v = await env.KV.get(rlKey);
+        count = v ? Number(v) : 0;
+      } catch {}
+      if (count >= limit) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Try again later.' }), { status: 429, headers: { 'content-type': 'application/json; charset=utf-8' } });
+      }
+      // increment (best-effort)
+      try {
+        await env.KV.put(rlKey, String(count + 1), { expirationTtl: 120 });
+      } catch {}
+    } catch {}
+
     const payload = {
       model,
       max_tokens: maxTokens,
