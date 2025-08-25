@@ -50,6 +50,156 @@
         </div>
       </div>
 
+      <div id="panelInventory" class="tab-panel hidden">
+        <div class="card">
+          <h2>📦 Инвентарь</h2>
+          <div class="actions" style="margin:8px 0 12px; justify-content:flex-start; gap:8px;">
+            <button class="btn ok" id="btnInvNew">Новая запись</button>
+            <button class="btn" id="btnInvRefresh">Обновить</button>
+            <span class="muted">Редактируйте запись через форму ниже</span>
+          </div>
+          <h3>Текущие остатки</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Товар</th>
+                  <th>Доступно</th>
+                  <th>Резерв</th>
+                  <th>Поступило</th>
+                  <th>Списано</th>
+                </tr>
+              </thead>
+              <tbody id="invStockBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>Леджер</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Дата</th>
+                  <th>Товар</th>
+                  <th>Тип</th>
+                  <th>Кол-во</th>
+                  <th>Примечание</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="invLedgerBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3 id="invFormTitle">Создать / Редактировать запись</h3>
+          <div class="grid" style="grid-template-columns: repeat(3, minmax(200px, 1fr)); gap:10px;">
+            <label class="stack">
+              <span class="muted">ID (если пусто — сгенерируется)</span>
+              <input type="text" id="invLedId" placeholder="l123" />
+            </label>
+            <label class="stack">
+              <span class="muted">Дата</span>
+              <input type="date" id="invLedDate" />
+            </label>
+            <label class="stack">
+              <span class="muted">ID товара</span>
+              <input type="text" id="invLedProductId" placeholder="p1" list="invProductList" />
+              <datalist id="invProductList"></datalist>
+            </label>
+            <label class="stack">
+              <span class="muted">Тип</span>
+              <select id="invLedType">
+                <option value="in">in</option>
+                <option value="out">out</option>
+                <option value="reserve">reserve</option>
+                <option value="release">release</option>
+              </select>
+            </label>
+            <label class="stack">
+              <span class="muted">Кол-во</span>
+              <input type="number" id="invLedQty" min="1" step="1" placeholder="1" />
+            </label>
+            <label class="stack">
+              <span class="muted">Примечание</span>
+              <input type="text" id="invLedNote" placeholder="Комментарий (опц.)" />
+            </label>
+          </div>
+          <div class="actions" style="margin-top:10px; justify-content:flex-start; gap:8px;">
+            <button class="btn ok" id="btnInvSave">Сохранить</button>
+            <button class="btn secondary" id="btnInvCancel">Отмена</button>
+          </div>
+        </div>
+      </div>
+      <div id="panelShipments" class="tab-panel hidden">
+        <div class="card">
+          <h2>🚚 Отгрузки</h2>
+          <div class="actions" style="margin:8px 0 12px; justify-content:flex-start; gap:8px;">
+            <button class="btn ok" id="btnShipNew">Новая отгрузка</button>
+            <button class="btn" id="btnShipRefresh">Обновить</button>
+            <span class="muted">Редактируйте отгрузку через форму ниже</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Курьер</th>
+                  <th>Трек-номер</th>
+                  <th>Статус</th>
+                  <th>ETA</th>
+                  <th>Стоимость (RUB)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="shipmentsCrudBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3 id="shipFormTitle">Создать / Редактировать отгрузку</h3>
+          <div class="grid" style="grid-template-columns: repeat(3, minmax(200px, 1fr)); gap:10px;">
+            <label class="stack">
+              <span class="muted">ID (если пусто — сгенерируется)</span>
+              <input type="text" id="shipId" placeholder="s123" />
+            </label>
+            <label class="stack">
+              <span class="muted">Курьер</span>
+              <input type="text" id="shipCarrier" placeholder="SF, CDEK..." />
+            </label>
+            <label class="stack">
+              <span class="muted">Трек-номер</span>
+              <input type="text" id="shipTracking" placeholder="XXXX" />
+            </label>
+            <label class="stack">
+              <span class="muted">Статус</span>
+              <select id="shipStatus">
+                <option value="label">label</option>
+                <option value="in_transit">in_transit</option>
+                <option value="customs">customs</option>
+                <option value="delivered">delivered</option>
+                <option value="lost">lost</option>
+                <option value="returned">returned</option>
+              </select>
+            </label>
+            <label class="stack">
+              <span class="muted">ETA</span>
+              <input type="date" id="shipEta" />
+            </label>
+            <label class="stack">
+              <span class="muted">Стоимость (RUB)</span>
+              <input type="number" step="0.01" min="0" id="shipCost" placeholder="0.00" />
+            </label>
+          </div>
+          <div class="actions" style="margin-top:10px; justify-content:flex-start; gap:8px;">
+            <button class="btn ok" id="btnShipSave">Сохранить</button>
+            <button class="btn secondary" id="btnShipCancel">Отмена</button>
+          </div>
+        </div>
+      </div>
+
       <div id="panelOrders" class="tab-panel hidden">
         <div class="card">
           <h2>🧾 Заказы</h2>
@@ -94,8 +244,9 @@
               </select>
             </label>
             <label class="stack">
-              <span class="muted">ID отгрузки (опц.)</span>
-              <input type="text" id="orderShipmentId" placeholder="s123" />
+              <span class="muted">ID отгрузки (выберите из списка)</span>
+              <input type="text" id="orderShipmentId" placeholder="s123" list="shipmentIdList" />
+              <datalist id="shipmentIdList"></datalist>
             </label>
             <label class="stack" style="grid-column: 1 / -1;">
               <span class="muted">Items (JSON массив: [{"productId":"p1","qty":2}])</span>
@@ -112,6 +263,8 @@
       <div class="tabs">
         <button class="tab-btn active" id="tabBtnDashboard">Дашборд</button>
         <button class="tab-btn" id="tabBtnOrders">Заказы</button>
+        <button class="tab-btn" id="tabBtnShipments">Отгрузки</button>
+        <button class="tab-btn" id="tabBtnInventory">Инвентарь</button>
         <button class="tab-btn" id="tabBtnDeliveries">Доставка</button>
         <button class="tab-btn" id="tabBtnProducts">Товары</button>
         <button class="tab-btn" id="tabBtnAI">ИИ</button>
