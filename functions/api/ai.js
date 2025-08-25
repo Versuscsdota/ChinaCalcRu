@@ -17,6 +17,7 @@ export async function onRequestPost({ env, request }) {
     const body = await request.json();
     const userText = (body && typeof body.text === 'string') ? body.text : '';
     const system = typeof body.system === 'string' ? body.system : undefined;
+    const image = body && body.image && typeof body.image === 'object' ? body.image : undefined;
     const maxTokens = Number(body.max_tokens) || 512;
     const model = body.model || 'claude-3-5-sonnet-20240620';
 
@@ -69,11 +70,29 @@ export async function onRequestPost({ env, request }) {
       } catch {}
     } catch {}
 
+    // Build content blocks
+    const content = [];
+    content.push({ type: 'text', text: userText });
+    if (image && typeof image.media_type === 'string' && typeof image.data === 'string') {
+      const okType = image.media_type.startsWith('image/');
+      const approxBytes = Math.floor(image.data.length * 3 / 4);
+      if (!okType) {
+        return new Response(JSON.stringify({ error: 'Only image/* attachments allowed' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } });
+      }
+      if (approxBytes > 5 * 1024 * 1024) { // ~5MB limit
+        return new Response(JSON.stringify({ error: 'Image too large (max 5MB)' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } });
+      }
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: image.media_type, data: image.data }
+      });
+    }
+
     const payload = {
       model,
       max_tokens: maxTokens,
       messages: [
-        { role: 'user', content: userText }
+        { role: 'user', content }
       ]
     };
     if (system) {

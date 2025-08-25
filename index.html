@@ -54,6 +54,7 @@
         <button class="tab-btn active" id="tabBtnDashboard">Дашборд</button>
         <button class="tab-btn" id="tabBtnDeliveries">Доставка</button>
         <button class="tab-btn" id="tabBtnProducts">Товары</button>
+        <button class="tab-btn" id="tabBtnAI">ИИ</button>
       </div>
 
       <div id="panelDashboard" class="tab-panel">
@@ -100,19 +101,28 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- AI Assistant -->
-  <div class="container">
-    <div id="ai" class="card">
-      <h2>🤖 Помощник (Claude)</h2>
-      <div id="chatMessages" class="stack" style="max-height:220px; overflow:auto; gap:8px;"></div>
-      <div class="row" style="margin-top:10px;">
-        <input type="text" id="chatInput" placeholder="Спросите у ИИ…" />
-        <button class="btn" id="chatSend">Отправить</button>
+      <div id="panelAI" class="tab-panel hidden">
+        <div id="ai" class="card">
+          <h2>🤖 Помощник (Claude)</h2>
+          <div id="chatMessages" class="stack" style="max-height:260px; overflow:auto; gap:8px;"></div>
+          <div class="row" style="margin-top:10px; align-items:end;">
+            <div class="stack">
+              <label for="chatInput">Сообщение</label>
+              <input type="text" id="chatInput" placeholder="Спросите у ИИ…" />
+            </div>
+            <div class="stack">
+              <label for="chatFile">Вложение (фото, опц.)</label>
+              <input type="file" id="chatFile" accept="image/*" />
+            </div>
+            <div class="actions" style="align-items:end;">
+              <button class="btn" id="chatSend">Отправить</button>
+              <button class="btn secondary" id="chatClear">Очистить чат</button>
+            </div>
+          </div>
+          <span class="badge" style="margin-top:8px;">ИИ может анализировать изображение и предлагать изменения данных (с подтверждением)</span>
+        </div>
       </div>
-      <span class="badge" style="margin-top:8px;">ИИ может помогать с расчётами и объяснениями</span>
     </div>
   </div>
 

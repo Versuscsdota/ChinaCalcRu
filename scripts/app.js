@@ -85,14 +85,18 @@
     chatMessages: document.getElementById('chatMessages'),
     chatInput: document.getElementById('chatInput'),
     chatSend: document.getElementById('chatSend'),
+    chatFile: document.getElementById('chatFile'),
+    chatClear: document.getElementById('chatClear'),
 
     // Tabs
     tabBtnDashboard: document.getElementById('tabBtnDashboard'),
     tabBtnDeliveries: document.getElementById('tabBtnDeliveries'),
     tabBtnProducts: document.getElementById('tabBtnProducts'),
+    tabBtnAI: document.getElementById('tabBtnAI'),
     panelDashboard: document.getElementById('panelDashboard'),
     panelDeliveries: document.getElementById('panelDeliveries'),
     panelProducts: document.getElementById('panelProducts'),
+    panelAI: document.getElementById('panelAI'),
   };
 
   // Save status helper (moved here so it can access `el.saveStatus`)
@@ -368,14 +372,18 @@
 
   // Tabs switching
   function setTab(name){
-    const btns = [el.tabBtnDashboard, el.tabBtnDeliveries, el.tabBtnProducts];
-    const panels = [el.panelDashboard, el.panelDeliveries, el.panelProducts];
-    const names = ['dashboard','deliveries','products'];
+    const btns = [el.tabBtnDashboard, el.tabBtnDeliveries, el.tabBtnProducts, el.tabBtnAI];
+    const panels = [el.panelDashboard, el.panelDeliveries, el.panelProducts, el.panelAI];
+    const names = ['dashboard','deliveries','products','ai'];
     names.forEach((n, i) => {
       if(!btns[i] || !panels[i]) return;
       if(n === name){
         btns[i].classList.add('active');
         panels[i].classList.remove('hidden');
+        if(n === 'ai'){
+          // ensure chat history visible when opening AI tab
+          renderChatHistory();
+        }
       } else {
         btns[i].classList.remove('active');
         panels[i].classList.add('hidden');
@@ -385,6 +393,7 @@
   if(el.tabBtnDashboard) el.tabBtnDashboard.onclick = () => setTab('dashboard');
   if(el.tabBtnDeliveries) el.tabBtnDeliveries.onclick = () => setTab('deliveries');
   if(el.tabBtnProducts) el.tabBtnProducts.onclick = () => setTab('products');
+  if(el.tabBtnAI) el.tabBtnAI.onclick = () => setTab('ai');
 
   el.btnAddProduct.onclick = () => { addProduct(); scheduleSave(); };
   el.btnClearAll.onclick = async () => {
@@ -651,12 +660,77 @@ function appendChat(role, text){
   el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
 }
 
+// Chat history persistence
+const CHAT_KEY = 'chat_history_v1';
+function saveChatHistory(list){
+  try{ localStorage.setItem(CHAT_KEY, JSON.stringify(list)); }catch{}
+}
+function loadChatHistory(){
+  try{ const raw = localStorage.getItem(CHAT_KEY); return raw ? JSON.parse(raw) : []; }catch{ return []; }
+}
+function renderChatHistory(){
+  if(!el.chatMessages) return;
+  el.chatMessages.innerHTML = '';
+  const items = loadChatHistory();
+  items.forEach(m => {
+    const { role, text, image } = m;
+    // text
+    appendChat(role, text || '');
+    // image preview (if any)
+    if(image && image.dataUrl){
+      const imgWrap = document.createElement('div');
+      imgWrap.style.padding = '6px 0';
+      const img = document.createElement('img');
+      img.src = image.dataUrl;
+      img.alt = image.name || 'attachment';
+      img.style.maxWidth = '260px';
+      img.style.borderRadius = '6px';
+      el.chatMessages.appendChild(imgWrap);
+      imgWrap.appendChild(img);
+    }
+  });
+  el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
+}
+
+function pushHistory(item){
+  const items = loadChatHistory();
+  items.push(Object.assign({ ts: Date.now() }, item));
+  saveChatHistory(items);
+}
+
 async function sendChat(){
   if(!el.chatInput || !el.chatSend) return;
   const q = (el.chatInput.value || '').trim();
   if(!q) return;
+  // prepare optional image
+  let imagePayload = null;
+  let imagePreview = null;
+  if(el.chatFile && el.chatFile.files && el.chatFile.files[0]){
+    const file = el.chatFile.files[0];
+    if(file && file.type.startsWith('image/')){
+      imagePayload = await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          const dataUrl = String(fr.result||'');
+          const base64 = dataUrl.split(',')[1] || '';
+          resolve({ media_type: file.type, data: base64, name: file.name, dataUrl });
+        };
+        fr.readAsDataURL(file);
+      });
+      imagePreview = imagePayload.dataUrl;
+    }
+  }
+
   appendChat('user', q);
+  if(imagePreview){
+    const img = document.createElement('img');
+    img.src = imagePreview; img.alt = imagePayload?.name||'attachment';
+    img.style.maxWidth = '260px'; img.style.borderRadius = '6px';
+    el.chatMessages.appendChild(img);
+  }
+  pushHistory({ role: 'user', text: q, image: imagePayload ? { name: imagePayload.name, dataUrl: imagePreview } : undefined });
   el.chatInput.value = '';
+  if(el.chatFile) el.chatFile.value = '';
 
   const thinking = document.createElement('div');
   thinking.style.padding = '8px 10px';
@@ -671,7 +745,7 @@ async function sendChat(){
     const res = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: q, system: buildSystemContext() })
+      body: JSON.stringify({ text: q, system: buildSystemContext(), image: imagePayload ? { media_type: imagePayload.media_type, data: imagePayload.data } : undefined })
     });
     const data = await res.json().catch(() => ({}));
     thinking.remove();
@@ -680,6 +754,9 @@ async function sendChat(){
     } else {
       const answer = (data && (data.answer || (Array.isArray(data.raw?.content) ? data.raw.content.map(p => p.text || '').join('\n') : ''))) || '';
       appendChat('assistant', String(answer || ''));
+      pushHistory({ role: 'assistant', text: String(answer||'') });
+      // Try auto-detect JSON changes block in the answer
+      tryApplyChangesFromAnswer(String(answer||''));
     }
   }catch(e){
     thinking.remove();
@@ -698,12 +775,106 @@ async function sendChat(){
       }
     });
   }
+  if(el.chatClear){ el.chatClear.onclick = () => { localStorage.removeItem(CHAT_KEY); renderChatHistory(); }; }
+
+  // Parse and apply AI-suggested changes
+  function extractJsonFromText(txt){
+    if(!txt) return null;
+    // try ```json block
+    const m = txt.match(/```json\s*([\s\S]*?)```/i);
+    if(m && m[1]){
+      try { return JSON.parse(m[1]); } catch {}
+    }
+    // try any JSON object substring
+    const idx = txt.indexOf('{');
+    const last = txt.lastIndexOf('}');
+    if(idx !== -1 && last !== -1 && last > idx){
+      const cand = txt.slice(idx, last+1);
+      try { return JSON.parse(cand); } catch {}
+    }
+    return null;
+  }
+
+  function tryApplyChangesFromAnswer(answer){
+    const obj = extractJsonFromText(answer);
+    if(!obj || typeof obj !== 'object') return;
+    // Supported shape examples:
+    // { currencyRate: 12.34, deliveries:[{name, pricePerKgRUB, minPriceRUB, percentFee, fixedFeeRUB}], products:[{id?, name?, quantity?, unitPriceYuan?, weightKg?, deliveryOptionName?}] }
+    const preview = [];
+    if(typeof obj.currencyRate === 'number') preview.push(`Курс: ${obj.currencyRate}`);
+    if(Array.isArray(obj.deliveries)) preview.push(`Доставки: ${obj.deliveries.length}`);
+    if(Array.isArray(obj.products)) preview.push(`Товары: ${obj.products.length}`);
+    if(preview.length === 0) return;
+    if(!confirm(`ИИ предлагает изменения:\n${preview.join('\n')}\nПрименить?`)) return;
+    // apply
+    if(typeof obj.currencyRate === 'number' && isFinite(obj.currencyRate) && obj.currencyRate > 0){
+      state.currencyRate = Number(obj.currencyRate);
+      if(el.currencyRate) el.currencyRate.value = state.currencyRate.toFixed(2);
+    }
+    if(Array.isArray(obj.deliveries)){
+      obj.deliveries.forEach(d => {
+        if(!d || typeof d !== 'object' || !d.name) return;
+        const existing = state.deliveryOptions.find(x => x.name === d.name);
+        const norm = {
+          name: String(d.name),
+          pricePerKgRUB: Number(d.pricePerKgRUB) || 0,
+          minPriceRUB: Number(d.minPriceRUB) || 0,
+          percentFee: Number(d.percentFee) || 0,
+          fixedFeeRUB: Number(d.fixedFeeRUB) || 0,
+        };
+        if(existing){
+          Object.assign(existing, norm);
+        } else {
+          state.deliveryOptions.push(norm);
+        }
+      });
+      renderDeliveryList();
+    }
+    if(Array.isArray(obj.products)){
+      obj.products.forEach(p => {
+        if(!p || typeof p !== 'object') return;
+        let target = null;
+        if(p.id){ target = state.products.find(x => String(x.id) === String(p.id)); }
+        if(!target && p.name){ target = state.products.find(x => x.name === p.name); }
+        const data = {
+          name: p.name != null ? String(p.name) : undefined,
+          url: p.url != null ? String(p.url) : undefined,
+          weightKg: p.weightKg != null ? Number(p.weightKg) : undefined,
+          quantity: p.quantity != null ? Number(p.quantity) : undefined,
+          unitPriceYuan: p.unitPriceYuan != null ? Number(p.unitPriceYuan) : undefined,
+          deliveryOptionName: p.deliveryOptionName != null ? String(p.deliveryOptionName) : undefined,
+        };
+        if(target){
+          Object.keys(data).forEach(k => { if(data[k] !== undefined) target[k] = data[k]; });
+          recalcProduct(target);
+        } else {
+          const np = {
+            id: Date.now() + Math.floor(Math.random()*1000),
+            name: data.name || 'Товар',
+            url: data.url || '',
+            weightKg: data.weightKg || 0,
+            quantity: data.quantity || 1,
+            unitPriceYuan: data.unitPriceYuan || 0,
+            deliveryOptionName: data.deliveryOptionName || '',
+            finalPriceRUB: 0,
+          };
+          recalcProduct(np);
+          state.products.push(np);
+        }
+      });
+      renderProducts();
+    }
+    recalcAll();
+    scheduleSave();
+  }
 
   // Startup: auth removed — show app immediately and load cloud data
   el.authCard.classList.add('hidden');
   el.app.classList.remove('hidden');
   el.currencyRate.value = state.currencyRate.toFixed(2);
   setSaving('saved');
+  // render chat history initially
+  renderChatHistory();
   // default tab
   if (typeof setTab === 'function') { setTab('dashboard'); }
   loadFromCloud();
