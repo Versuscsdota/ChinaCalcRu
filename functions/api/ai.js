@@ -1,5 +1,11 @@
 export async function onRequestPost({ env, request }) {
   try {
+    // Require authentication if ACCESS_KEY is set
+    if (env.ACCESS_KEY) {
+      const cookie = request.headers.get('Cookie') || '';
+      const ok = /(?:^|; )SESSION=1(?:;|$)/.test(cookie);
+      if (!ok) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8' } });
+    }
     if (!env.ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: 'Server not configured: missing ANTHROPIC_API_KEY' }), {
         status: 500,

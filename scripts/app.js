@@ -118,9 +118,12 @@
   }
 
   // Helpers
-  // Legacy auth helpers no longer used
-  function showAuthError() {}
-  function hideAuthError() {}
+  function showAuthError(msg) {
+    if(!el.authError) return;
+    el.authError.textContent = msg || 'Ошибка входа';
+    el.authError.classList.remove('hidden');
+  }
+  function hideAuthError() { if(el.authError) el.authError.classList.add('hidden'); }
 
   function fmt2(n){ return (Number(n)||0).toFixed(2); }
   function isValidUrl(u){ try { new URL(u); return true; } catch { return false; } }
@@ -660,18 +663,27 @@ function appendChat(role, text){
   el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
 }
 
-// Chat history persistence
-const CHAT_KEY = 'chat_history_v1';
-function saveChatHistory(list){
-  try{ localStorage.setItem(CHAT_KEY, JSON.stringify(list)); }catch{}
+// Chat history: cloud-backed via /api/chat
+let CHAT_CACHE = [];
+async function loadChatHistory(){
+  try{
+    const res = await fetch('/api/chat', { credentials: 'include' });
+    if(!res.ok) return [];
+    const data = await res.json().catch(()=>({ items: [] }));
+    CHAT_CACHE = Array.isArray(data.items) ? data.items : [];
+    return CHAT_CACHE;
+  }catch{ return []; }
 }
-function loadChatHistory(){
-  try{ const raw = localStorage.getItem(CHAT_KEY); return raw ? JSON.parse(raw) : []; }catch{ return []; }
+async function saveChatHistory(list){
+  CHAT_CACHE = Array.isArray(list) ? list : CHAT_CACHE;
+  try{
+    await fetch('/api/chat', { method: 'PUT', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ items: CHAT_CACHE }) });
+  }catch{}
 }
-function renderChatHistory(){
+async function renderChatHistory(){
   if(!el.chatMessages) return;
   el.chatMessages.innerHTML = '';
-  const items = loadChatHistory();
+  const items = CHAT_CACHE.length ? CHAT_CACHE : await loadChatHistory();
   items.forEach(m => {
     const { role, text, image } = m;
     // text
@@ -692,10 +704,9 @@ function renderChatHistory(){
   el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
 }
 
-function pushHistory(item){
-  const items = loadChatHistory();
-  items.push(Object.assign({ ts: Date.now() }, item));
-  saveChatHistory(items);
+async function pushHistory(item){
+  CHAT_CACHE.push(Object.assign({ ts: Date.now() }, item));
+  await saveChatHistory(CHAT_CACHE);
 }
 
 async function sendChat(){
@@ -745,6 +756,7 @@ async function sendChat(){
     const res = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ text: q, system: buildSystemContext(), image: imagePayload ? { media_type: imagePayload.media_type, data: imagePayload.data } : undefined })
     });
     const data = await res.json().catch(() => ({}));
@@ -754,7 +766,7 @@ async function sendChat(){
     } else {
       const answer = (data && (data.answer || (Array.isArray(data.raw?.content) ? data.raw.content.map(p => p.text || '').join('\n') : ''))) || '';
       appendChat('assistant', String(answer || ''));
-      pushHistory({ role: 'assistant', text: String(answer||'') });
+      await pushHistory({ role: 'assistant', text: String(answer||'') });
       // Try auto-detect JSON changes block in the answer
       tryApplyChangesFromAnswer(String(answer||''));
     }
@@ -775,7 +787,7 @@ async function sendChat(){
       }
     });
   }
-  if(el.chatClear){ el.chatClear.onclick = () => { localStorage.removeItem(CHAT_KEY); renderChatHistory(); }; }
+  if(el.chatClear){ el.chatClear.onclick = async () => { try{ await fetch('/api/chat', { method:'DELETE', credentials: 'include' }); }catch{} CHAT_CACHE = []; renderChatHistory(); }; }
 
   // Parse and apply AI-suggested changes
   function extractJsonFromText(txt){
@@ -868,14 +880,47 @@ async function sendChat(){
     scheduleSave();
   }
 
-  // Startup: auth removed — show app immediately and load cloud data
-  el.authCard.classList.add('hidden');
-  el.app.classList.remove('hidden');
-  el.currencyRate.value = state.currencyRate.toFixed(2);
-  setSaving('saved');
-  // render chat history initially
-  renderChatHistory();
-  // default tab
-  if (typeof setTab === 'function') { setTab('dashboard'); }
-  loadFromCloud();
+  // Auth + Startup
+  async function initApp(){
+    el.authCard.classList.add('hidden');
+    el.app.classList.remove('hidden');
+    el.currencyRate.value = state.currencyRate.toFixed(2);
+    setSaving('saved');
+    await loadFromCloud();
+    await loadChatHistory();
+    renderChatHistory();
+    if (typeof setTab === 'function') { setTab('dashboard'); }
+  }
+
+  async function checkAuth(){
+    try{
+      const res = await fetch('/api/auth', { credentials: 'include' });
+      const data = await res.json().catch(()=>({ ok:false }));
+      if(res.ok && data.ok){ await initApp(); }
+      else {
+        el.app.classList.add('hidden');
+        el.authCard.classList.remove('hidden');
+      }
+    }catch{
+      el.app.classList.add('hidden');
+      el.authCard.classList.remove('hidden');
+    }
+  }
+
+  if(el.btnLogin){
+    el.btnLogin.onclick = async () => {
+      hideAuthError();
+      const key = (el.accessKeyInput.value||'').trim();
+      if(!key) { showAuthError('Введите ключ доступа'); return; }
+      try{
+        const res = await fetch('/api/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ key }) });
+        const data = await res.json().catch(()=>({ ok:false }));
+        if(res.ok && data.ok){ await initApp(); }
+        else { showAuthError(data.error || 'Неверный ключ'); }
+      }catch{ showAuthError('Сбой входа'); }
+    };
+  }
+
+  // Kick off
+  checkAuth();
 })();

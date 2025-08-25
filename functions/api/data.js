@@ -1,5 +1,6 @@
 export async function onRequestGet({ env, request }) {
-  // Use a single global dataset. To make per-user data, use Cf-Access-Authenticated-User-Email header.
+  if (!isAuthed(request, env)) return new Response('Unauthorized', { status: 401 });
+  // Global shared dataset for all users
   const key = 'global';
   const json = await env.KV.get(key);
   const data = json ? JSON.parse(json) : {
@@ -13,6 +14,7 @@ export async function onRequestGet({ env, request }) {
 }
 
 export async function onRequestPut({ env, request }) {
+  if (!isAuthed(request, env)) return new Response('Unauthorized', { status: 401 });
   if ((request.headers.get('content-type') || '').includes('application/json') === false) {
     return new Response('Expected application/json', { status: 415 });
   }
@@ -27,4 +29,10 @@ export async function onRequestPut({ env, request }) {
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'content-type': 'application/json; charset=utf-8' }
   });
+}
+
+function isAuthed(request, env){
+  if (!env.ACCESS_KEY) return true; // open if no key configured
+  const cookie = request.headers.get('Cookie') || '';
+  return /(?:^|; )SESSION=1(?:;|$)/.test(cookie);
 }
